@@ -1,0 +1,27 @@
+# Portable runtime and downloaded archives
+/runtime/*
+!/runtime/.gitkeep
+/downloads/*
+!/downloads/.gitkeep
+/work/
+
+# Emacs generated state
+*.elc
+*.eln
+*~
+\#*\#
+.\#*
+/emacs-init/custom.el
+/emacs-init/elpa/
+/emacs-init/eln-cache/
+/emacs-init/transient/
+/emacs-init/auto-save-list/
+/emacs-init/places
+/emacs-init/history
+/emacs-init/recentf
+
+# Windows and editor metadata
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/

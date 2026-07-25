@@ -1,0 +1,10 @@
+Unicode display test
+
+Latin: Cafe naive facade
+Greek: Ελληνικά
+Cyrillic: Кириллица
+Math: ∑ ∫ √ ≠ ≤ ≥
+Symbols: ✓ ★ ⚙ ☂
+Battery: 🔋
+Emoji: 😀 🚀 🧪 🛠️
+CJK: 日本語 中文 한국어

@@ -1,0 +1,7 @@
+* text=auto
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.el text eol=lf
+*.org text eol=lf
+*.md text eol=lf
+*.txt text eol=lf

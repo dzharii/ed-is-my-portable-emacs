@@ -22,7 +22,7 @@ C00 Reversible PATH management
 
 ---
 
-Add an `uninstall.ps1` command that removes only the exact launcher and runtime entries previously added by this repository. It should use the same raw registry access as the installer, preserve the original registry value type, avoid normalizing unrelated entries, and ask before changing the user PATH.
+Add an `uninstall.ps1` command that removes only the exact repository-root launcher entry previously added by this repository. It should use the same raw registry access as the installer, preserve the original registry value type, avoid normalizing unrelated entries, and ask before changing the user PATH. Versioned runtime directories are never added to PATH.
 
 ---
 

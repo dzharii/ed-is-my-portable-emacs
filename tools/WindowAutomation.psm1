@@ -32,6 +32,10 @@ public static class EdWindowNative
     public static extern bool ShowWindow(IntPtr hWnd, int command);
 
     [DllImport("user32.dll")]
+    public static extern bool MoveWindow(
+        IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+
+    [DllImport("user32.dll")]
     public static extern bool IsIconic(IntPtr hWnd);
 
     [DllImport("user32.dll")]
@@ -116,6 +120,29 @@ function Set-EdWindowState {
         if ($Process.MainWindowHandle -eq [IntPtr]::Zero) {
             throw "The window for PID $($Process.Id) is no longer available."
         }
+    }
+}
+
+function Set-EdWindowBounds {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][Diagnostics.Process]$Process,
+        [ValidateRange(-10000, 10000)][int]$Left,
+        [ValidateRange(-10000, 10000)][int]$Top,
+        [ValidateRange(320, 10000)][int]$Width,
+        [ValidateRange(240, 10000)][int]$Height
+    )
+
+    [void][EdWindowNative]::ShowWindow($Process.MainWindowHandle, 9)
+    if (-not [EdWindowNative]::MoveWindow(
+            $Process.MainWindowHandle, $Left, $Top, $Width, $Height, $true)) {
+        throw "Could not resize the window for PID $($Process.Id)."
+    }
+
+    $actual = Get-EdWindowRectangle -Process $Process
+    if ($actual.Left -ne $Left -or $actual.Top -ne $Top -or
+        $actual.Width -ne $Width -or $actual.Height -ne $Height) {
+        throw "Window bounds verification failed for PID $($Process.Id): expected ($Left,$Top) ${Width}x${Height}, received ($($actual.Left),$($actual.Top)) $($actual.Width)x$($actual.Height)."
     }
 }
 
@@ -213,6 +240,7 @@ Export-ModuleMember -Function @(
     'Get-EdWindow',
     'Get-EdWindowRectangle',
     'Set-EdWindowState',
+    'Set-EdWindowBounds',
     'Set-EdWindowForeground',
     'Invoke-EdWindowClick',
     'Send-EdWindowKeys',

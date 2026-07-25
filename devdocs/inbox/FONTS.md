@@ -6,9 +6,9 @@ A00 Included behavior
 
 ---
 
-No font binaries are included in this repository. The Emacs configuration uses an installed monospaced font for ordinary text and adds Windows' `Segoe UI Symbol` and `Segoe UI Emoji` as fontset fallbacks. Windows 10 and Windows 11 provide Segoe UI Emoji, and Segoe UI Symbol is present across supported Windows desktop versions.
+No font binaries are included in this repository. The Emacs configuration uses the first installed family from its preferred monospaced-font list for ordinary text. It checks for `Segoe UI Symbol` and `Segoe UI Emoji` before adding them as fontset fallbacks; a missing family is skipped.
 
-This is sufficient for ordinary Unicode text, symbols, and standard emoji such as the battery emoji in `docs/unicode-test.txt`. Color rendering depends on the Windows Emacs rendering path and should not be assumed; correct glyph coverage is the primary target.
+With those Windows fonts present, this is sufficient for ordinary Unicode text, symbols, and standard emoji such as the battery emoji in `unicode-test.txt`. Color rendering depends on the Windows Emacs rendering path and should not be assumed; correct glyph coverage is the primary target.
 
 ---
 

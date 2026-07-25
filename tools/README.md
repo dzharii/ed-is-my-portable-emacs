@@ -19,6 +19,7 @@
 
 - `Get-EdWindow`
 - `Get-EdWindowRectangle`
+- `Set-EdWindowBounds`
 - `Set-EdWindowState`
 - `Set-EdWindowForeground`
 - `Invoke-EdWindowClick`

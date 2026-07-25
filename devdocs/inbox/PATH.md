@@ -32,7 +32,7 @@ D00 Manual alternative
 
 ---
 
-Decline the prompt and add these two entries with the Windows Environment Variables user interface:
+Decline the prompt and add this entry with the Windows Environment Variables user interface:
 
 ```text
 <repository root>

@@ -6,7 +6,7 @@ A00 Clean-machine bootstrap
 
 ---
 
-Validated on Windows with neither `emacs` nor `runemacs` discoverable and with empty `runtime/` and `downloads/` directories:
+Validated on Windows with neither `emacs` nor `runemacs` discoverable and with no runtime or download payloads beyond the repository's tracked placeholder files:
 
 - declining the prompt returned exit code 2, downloaded nothing, and launched nothing;
 - approving through `ed.cmd` downloaded GNU Emacs 30.2, verified SHA-256 `414D3A1A21147AF257EBD98BDD15976FDCB5ED0563F6DE89F76D4A4B5DAD9C72`, extracted through staging, wrote `runtime/current-bin.txt`, and continued into the local `runemacs.exe`;
@@ -40,7 +40,7 @@ The included Windows automation tools were used against the repository runtime's
 
 - opened `work\path with spaces\uat file.txt`;
 - restored and maximized the window, clicked inside the editor, typed a sentence, saved with `C-x C-s`, and verified the bytes on disk;
-- opened `docs\unicode-test.txt` and visually checked Latin, Greek, Cyrillic, math, symbols, battery, emoji, and CJK glyphs;
+- opened `devdocs\inbox\unicode-test.txt` and visually checked Latin, Greek, Cyrillic, math, symbols, battery, emoji, and CJK glyphs;
 - launched bare `ed` from a directory containing spaces and landed in Eshell at that exact directory;
 - toggled the dedicated bottom terminal open and closed with `C-c t`;
 - captured screenshots after each important state.

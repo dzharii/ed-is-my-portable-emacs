@@ -3,30 +3,201 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Mobile Bookmarklet Share</title>
-  <meta name="description" content="TODO">
+
+  <title>ed — portable Emacs for Windows</title>
+  <meta name="description" content="A small, portable Emacs setup for Windows. Keep the launcher and configuration together, then open any folder with ed.">
   <link rel="canonical" href="https://ed.awwtools.com/">
 
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="TODO">
-  <meta property="og:title" content="TODO">
-  <meta property="og:description" content="TODO">
+  <meta property="og:site_name" content="ed">
+  <meta property="og:title" content="ed — portable Emacs for Windows">
+  <meta property="og:description" content="Keep the launcher and configuration together, then open any folder with ed.">
   <meta property="og:url" content="https://ed.awwtools.com/">
   <meta property="og:image" content="https://ed.awwtools.com/social-card.jpg">
   <meta property="og:image:secure_url" content="https://ed.awwtools.com/social-card.jpg">
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="TODO">
+  <meta property="og:image:alt" content="ed, portable Emacs for Windows. Your editor, from any folder.">
   <meta property="og:locale" content="en_US">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="TODO">
-  <meta name="twitter:description" content="TODO">
+  <meta name="twitter:title" content="ed — portable Emacs for Windows">
+  <meta name="twitter:description" content="Keep the launcher and configuration together, then open any folder with ed.">
   <meta name="twitter:image" content="https://ed.awwtools.com/social-card.jpg">
-  <meta name="twitter:image:alt" content="TODO">
+  <meta name="twitter:image:alt" content="ed, portable Emacs for Windows. Your editor, from any folder.">
 
-  <meta name="theme-color" content="#fbfaf6">
+  <meta name="theme-color" content="#f2f1ec">
   <meta name="color-scheme" content="light">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header page-shell">
+    <a class="wordmark" href="/" aria-label="ed home">ed</a>
+    <nav aria-label="Primary">
+      <a href="#install">Install</a>
+      <a href="https://github.com/dzharii/ed-is-my-portable-emacs">Source</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero page-shell" aria-labelledby="hero-title">
+      <p class="kicker">Portable Emacs for Windows</p>
+      <h1 id="hero-title">An editor you can take with you.</h1>
+      <p class="lede">
+        <strong>ed</strong> keeps an Emacs launcher and a practical configuration
+        in one repository. Run it in the folder where you are already working,
+        with the same tracked configuration on each Windows machine you use.
+      </p>
+      <pre class="launch-line" aria-label="Launch ed in the current project"><code><span class="prompt">C:\work\project&gt;</span> ed</code></pre>
+      <p class="hero-links">
+        <a class="text-link" href="#install">Install ed</a>
+        <span aria-hidden="true">·</span>
+        <a class="text-link" href="https://github.com/dzharii/ed-is-my-portable-emacs">Browse the source</a>
+      </p>
+    </section>
+
+    <figure class="hero-figure page-shell">
+      <img
+        src="media/ed-writing-1024.png"
+        width="1024"
+        height="692"
+        fetchpriority="high"
+        alt="Emacs displaying a Markdown note with a heading, numbered steps, a quotation, and a checklist in a light theme.">
+      <figcaption>
+        An ordinary Markdown file on disk, opened with the configuration that
+        ships in the repository.
+      </figcaption>
+    </figure>
+
+    <section class="chapter page-shell" aria-labelledby="why-title">
+      <header class="chapter-heading">
+        <p class="folio">01 / What it changes</p>
+        <h2 id="why-title">Less setup to reconstruct.</h2>
+      </header>
+      <div class="chapter-body">
+        <dl class="reasons">
+          <div>
+            <dt>The setup stays visible</dt>
+            <dd>
+              The launcher and Emacs configuration live beside one another.
+              Downloaded archives, the portable runtime, packages, and generated
+              state stay out of the tracked source.
+            </dd>
+          </div>
+          <div>
+            <dt>It opens where you are</dt>
+            <dd>
+              Run <code>ed</code> in a directory, or pass it a file. A directory
+              starts an Emacs shell there; a file opens directly.
+            </dd>
+          </div>
+          <div>
+            <dt>It remains Emacs</dt>
+            <dd>
+              ed adds a light theme, completion, file modes for everyday work,
+              Magit, and a toggled terminal pane. Emacs key bindings remain,
+              and a language server never starts unless you request it.
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="chapter page-shell" aria-labelledby="work-title">
+      <header class="chapter-heading">
+        <p class="folio">02 / At work</p>
+        <h2 id="work-title">Writing and code share the same room.</h2>
+      </header>
+      <div class="chapter-body">
+        <p class="section-intro">
+          Notes, scripts, source, and data files can share one session without
+          turning every buffer into an IDE.
+        </p>
+
+        <div class="figure-grid">
+          <figure>
+            <img
+              src="media/ed-powershell-884.png"
+              width="884"
+              height="582"
+              loading="lazy"
+              decoding="async"
+              alt="A PowerShell script open in Emacs with line numbers and syntax highlighting.">
+            <figcaption>PowerShell syntax and line numbers.</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="media/ed-kql-884.png"
+              width="884"
+              height="582"
+              loading="lazy"
+              decoding="async"
+              alt="A Kusto Query Language query open in the custom ed KQL mode.">
+            <figcaption>
+              A small KQL mode highlights comments, keywords, strings, and
+              numbers.
+            </figcaption>
+          </figure>
+        </div>
+
+        <p class="language-line">
+          Markdown · Emacs Lisp · C# · Scala · PowerShell · JSON · YAML · KQL
+        </p>
+
+        <figure class="terminal-figure">
+          <img
+            src="media/ed-terminal-884.png"
+            width="884"
+            height="582"
+            loading="lazy"
+            decoding="async"
+            alt="The Emacs shell showing the current project directory and the main Git branch.">
+          <figcaption>
+            With no file argument, ed starts Eshell in the directory from which
+            it was launched. The same shell can be toggled below any buffer.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="chapter install page-shell" id="install" aria-labelledby="install-title">
+      <header class="chapter-heading">
+        <p class="folio">03 / Try it</p>
+        <h2 id="install-title">Clone, add one command, open a folder.</h2>
+      </header>
+      <div class="chapter-body">
+        <p>
+          Clone the repository on Windows and run the PATH helper from its root:
+        </p>
+        <pre class="install-code"><code>git clone https://github.com/dzharii/ed-is-my-portable-emacs.git
+cd ed-is-my-portable-emacs
+add-to-path.cmd</code></pre>
+        <p>
+          The helper shows the current-user PATH change and asks before writing
+          it. Open a new terminal, move to a project, and run:
+        </p>
+        <pre class="install-code"><code>ed</code></pre>
+        <p>
+          If no usable Emacs is available, ed explains the GNU Emacs 30.2
+          download and asks before starting it. Declining starts no download
+          and installs nothing.
+        </p>
+        <p class="install-links">
+          <a class="source-link" href="https://github.com/dzharii/ed-is-my-portable-emacs">Get the source on GitHub <span aria-hidden="true">→</span></a>
+          <a href="https://github.com/dzharii/ed-is-my-portable-emacs#ed-portable-emacs-for-windows">Read the installation notes</a>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer page-shell">
+    <p><strong>ed</strong> is public-domain configuration and tooling around GNU Emacs.</p>
+    <p>Windows · GNU Emacs 30.2 by default · no account</p>
+  </footer>
+</body>
+</html>

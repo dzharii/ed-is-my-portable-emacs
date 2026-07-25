@@ -6,7 +6,7 @@ A00 Purpose
 
 ---
 
-This repository keeps the launcher, installer, portable runtime, and Emacs configuration in predictable locations. Clone it on Windows, add the launcher to PATH once, then run `ed` from any directory. On the first launch, `ed` explains the portable install and asks before downloading anything.
+This repository keeps the launcher, installer, portable runtime, and Emacs configuration in predictable locations. Clone it on Windows, add the launcher to PATH once, then run `ed` from any directory. If neither a repository runtime nor an Emacs executable on PATH is available, `ed` explains the portable install and asks before downloading anything.
 
 The installer defaults to GNU Emacs 30.2. Another two-part release can be selected with `-Version`, for example `install.cmd -Version 30.1`.
 
@@ -25,8 +25,9 @@ B00 Repository layout
 | `emacs-init/` | `early-init.el`, `init.el`, and the literate configuration. |
 | `runtime/` | Portable Emacs installations. Ignored by Git. |
 | `downloads/` | Downloaded ZIP and checksum files. Ignored by Git. |
-| `tools/` | PATH safety tests plus guarded Windows click, input, state, and screenshot utilities. |
-| `docs/` | Review notes, PATH design, font guidance, and next steps. |
+| `tools/` | PATH safety tests plus guarded Windows window, click, input, and screenshot utilities. |
+| `docs/` | Static website source configured for [ed.awwtools.com](https://ed.awwtools.com/). |
+| `devdocs/inbox/` | Review notes, PATH design, font guidance, validation evidence, and next steps. |
 
 ---
 
@@ -46,7 +47,7 @@ Approve the current-user PATH change, open a new terminal, go to any project, an
 ed
 ```
 
-The first run explains that GNU Emacs 30.2 is needed and asks before downloading. Approval downloads the complete Windows ZIP and GNU checksum file into `downloads/`, verifies SHA-256, extracts through staging into `runtime/`, and continues directly into Emacs with this repository's configuration.
+If no usable Emacs is available, the first run explains that GNU Emacs 30.2 is needed and asks before downloading. Approval downloads the GNU checksum file and downloads or reuses a matching complete Windows ZIP in `downloads/`, verifies SHA-256, extracts through staging into `runtime/`, and continues directly into Emacs with this repository's configuration.
 
 To keep PATH untouched, run `ed.cmd` from the repository root instead.
 
@@ -107,7 +108,7 @@ ed C:\work\project
 ed C:\work\project\README.md
 ```
 
-The launcher first uses `runtime/current-bin.txt`, then searches `runtime/`, then falls back to an Emacs executable already present on PATH. A missing runtime triggers the approval-driven bootstrap; declining makes no changes and returns exit code 2.
+The launcher first uses `runtime/current-bin.txt`, then searches `runtime/`, then falls back to an Emacs executable already present on PATH. The approval-driven bootstrap runs only when none of those locations provides Emacs. Declining starts no download, installs nothing, launches nothing, and returns exit code 2.
 
 ---
 
@@ -117,7 +118,7 @@ F00 Configuration workflow
 
 Normal startup loads `emacs-init/init-config.el` directly. The source is `emacs-init/init-config.org`. After editing the Org file, run `M-x ed-reload-config`; this tangles and reloads the generated Lisp file.
 
-Package, native compilation, backup, auto-save, Custom, and history data are written under `%LOCALAPPDATA%\emacs-ed` rather than into the Git repository. Required ELPA packages are installed on the first launch with bounded retry for transient network failures.
+Package, native compilation, backup, auto-save, Custom, and history data are written under `%LOCALAPPDATA%\emacs-ed` rather than into the Git repository. Any missing required ELPA package is installed during startup with bounded retry for transient network failures.
 
 ---
 
@@ -125,9 +126,9 @@ G00 Unicode, emoji, and battery display
 
 ---
 
-No separate font installation is required on supported Windows systems. The configuration selects the first available developer font, falls back to the built-in Consolas family, and assigns the built-in `Segoe UI Symbol` and `Segoe UI Emoji` families for Unicode coverage. It also enables Emacs' built-in battery display when Windows exposes a battery status provider.
+No separate font installation is required on supported Windows systems. The configuration selects the first installed family from Cascadia Mono, Cascadia Code, JetBrains Mono, Consolas, and Fira Code, leaving Emacs' default in place if none is available. It assigns the Windows-provided `Segoe UI Symbol` and `Segoe UI Emoji` families when installed. It also enables Emacs' built-in battery display when Windows exposes a battery status provider.
 
-Open `docs/unicode-test.txt` to verify symbols and emoji. Additional font installation guidance is in `docs/FONTS.md`.
+Open [`devdocs/inbox/unicode-test.txt`](devdocs/inbox/unicode-test.txt) to verify symbols and emoji. Additional font guidance is in [`devdocs/inbox/FONTS.md`](devdocs/inbox/FONTS.md).
 
 ---
 

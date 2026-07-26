@@ -229,6 +229,13 @@
         corfu-auto-delay 0.15
         corfu-cycle t
         corfu-quit-no-match 'separator)
+  
+  ;; Shell completion backends may invoke external helper commands.
+  ;; Do not run them automatically merely because text was typed.
+  (add-hook 'eshell-mode-hook
+            (lambda ()
+              (setq-local corfu-auto nil)))
+  
   (when (fboundp 'corfu-popupinfo-mode)
     (corfu-popupinfo-mode 1)))       ; docs beside the candidate
 

@@ -191,6 +191,8 @@
 (repeat-mode 1)      ; repeat map-able commands without the prefix
 (when (fboundp 'editorconfig-mode) (editorconfig-mode 1))
 
+(add-hook 'text-mode-hook #'visual-line-mode)
+
 (use-package vertico
   :init (vertico-mode 1)
   :config (setq vertico-cycle t))
@@ -244,7 +246,14 @@
   (add-to-list 'completion-at-point-functions #'cape-file)
   (add-to-list 'completion-at-point-functions #'cape-dabbrev))
 
+(with-eval-after-load 'org
+  (setq org-hide-emphasis-markers nil
+        org-pretty-entities t
+        org-startup-folded 'content
+        org-return-follows-link t))
+
 (global-set-key (kbd "C-x C-b") #'ibuffer)
+(global-set-key (kbd "C-x k")   #'kill-current-buffer)
 
 ;; Eglot is loaded lazily and NEVER auto-started. No mode hook calls it, so
   ;; merely opening a .cs/.scala/.ps1/etc. file will not launch any server.

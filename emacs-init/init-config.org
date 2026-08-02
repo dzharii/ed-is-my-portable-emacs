@@ -252,6 +252,14 @@ Line numbers and matched-pair insertion are enabled only in programming buffers.
   (when (fboundp 'editorconfig-mode) (editorconfig-mode 1))
 #+end_src
 
+Wrap long prose visually without inserting newline characters.
+It was initially introduced as =(add-hook 'org-mode-hook #'visual-line-mode)= but
+I have decided to apply it globally. 
+
+#+begin_src emacs-lisp
+(add-hook 'text-mode-hook #'visual-line-mode)
+#+end_src
+
 * Minibuffer completion - Vertico stack
 Replaces the old, heavy Helm with the modern, lean Vertico family. This is the
 piece both reviewers pushed hardest on for a developer navigating large repos.
@@ -318,14 +326,28 @@ VS Code-style, as-you-type popup completion that plugs straight into Eglot's
     (add-to-list 'completion-at-point-functions #'cape-dabbrev))
 #+end_src
 
-* Navigation keybindings (minimal, non-intrusive)
-Only one binding is overridden, and it is a strict upgrade: =C-x C-b= lists buffers
-with =ibuffer= instead of the plain buffer menu. The old config's dangerous
-no-confirm =C-x k= and its =C-<tab>= window switch are intentionally NOT carried
-over - we keep the Emacs defaults (=C-x k=, =C-x o=).
+* Org behavior
+Keep Org markup editable while improving navigation and document startup.
+
+- =org-return-follows-link= makes =RET= context-sensitive on links.
+- =org-pretty-entities t=  displays entities such as =\alpha= using their corresponding symbols.
+  
 
 #+begin_src emacs-lisp
-  (global-set-key (kbd "C-x C-b") #'ibuffer)
+  (with-eval-after-load 'org
+    (setq org-hide-emphasis-markers nil
+          org-pretty-entities t
+          org-startup-folded 'content
+          org-return-follows-link t))
+#+end_src
+
+* Navigation keybindings (minimal, non-intrusive)
+
+=C-x C-b= opens =ibuffer= for a more capable buffer list. =C-x k= kills the current buffer directly when it has no unsaved changes. If the buffer has been modified, Emacs asks for confirmation before closing it.
+
+#+begin_src emacs-lisp
+(global-set-key (kbd "C-x C-b") #'ibuffer)
+(global-set-key (kbd "C-x k")   #'kill-current-buffer)
 #+end_src
 
 * Programming: language modes (LSP is strictly opt-in)

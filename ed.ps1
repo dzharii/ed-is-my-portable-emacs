@@ -165,6 +165,11 @@ if ($openFile) {
 }
 
 $argumentString = ($arguments | ForEach-Object { ConvertTo-WindowsCommandLineArgument $_ }) -join ' '
+$emacsBinPath = Split-Path  $emacs -Parent
+
+if ($emacsBinPath -and $env:PATH -and -not($env:PATH.Contains(";$($emacsBinPath)"))) {
+     $env:PATH += ";$($emacsBinPath)";
+}
 
 Write-Host 'ed: launching Emacs' -ForegroundColor Cyan
 Write-Host "    executable : $emacs"

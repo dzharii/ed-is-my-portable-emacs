@@ -193,6 +193,91 @@
 
 (add-hook 'text-mode-hook #'visual-line-mode)
 
+(defcustom ed-frame-max-width-px 1200
+  "Maximum width of a normal graphical Emacs frame in pixels."
+  :type 'integer
+  :group 'ed)
+
+(defcustom ed-frame-horizontal-gap-px 12
+  "Minimum gap between the frame and the monitor's horizontal edges."
+  :type 'integer
+  :group 'ed)
+
+(defcustom ed-frame-vertical-gap-px 32
+  "Preferred gap above and below the frame."
+  :type 'integer
+  :group 'ed)
+
+(defun ed-place-frame (&optional frame)
+  "Resize and center FRAME inside its monitor work area."
+  (let* ((frame (or frame (selected-frame)))
+         (monitor-attributes (frame-monitor-attributes frame))
+         (workarea (alist-get 'workarea monitor-attributes)))
+    (when (and (display-graphic-p frame)
+               (listp workarea)
+               (= (length workarea) 4))
+      (pcase-let ((`(,work-x ,work-y ,work-width ,work-height)
+                   workarea))
+        (let* ((available-width
+                (max 400
+                     (- work-width
+                        (* 2 ed-frame-horizontal-gap-px))))
+               (available-height
+                (max 400
+                     (- work-height
+                        (* 2 ed-frame-vertical-gap-px))))
+               (target-width
+                (min ed-frame-max-width-px available-width))
+               (target-height available-height)
+               (left
+                (+ work-x
+                   (/ (- work-width target-width) 2)))
+               (top
+                (+ work-y ed-frame-vertical-gap-px)))
+          (set-frame-size
+           frame target-width target-height t)
+          (set-frame-position frame left top))))))
+
+(add-hook 'window-setup-hook #'ed-place-frame)
+(add-hook 'after-make-frame-functions #'ed-place-frame)
+
+(require 'project)
+(require 'seq)
+
+(defun ed-modified-file-count ()
+  "Return the number of modified file-visiting buffers."
+  (seq-count
+   (lambda (buffer)
+     (with-current-buffer buffer
+       (and buffer-file-name
+            (buffer-modified-p))))
+   (buffer-list)))
+
+(defun ed-frame-title ()
+  "Return a concise, privacy-safe title for the selected frame."
+  (let* ((buffer-label
+          (if buffer-file-name
+              (file-name-nondirectory buffer-file-name)
+            (buffer-name)))
+         (project-label
+          (when-let* ((current-project (project-current nil))
+                      (root (project-root current-project)))
+            (file-name-nondirectory
+             (directory-file-name root))))
+         (modified-count
+          (ed-modified-file-count)))
+    (concat
+     "GNU Emacs"
+     (when (> modified-count 0)
+       (format " [%d unsaved]" modified-count))
+     " - "
+     buffer-label
+     (when project-label
+       (format " - %s" project-label)))))
+
+(setq frame-title-format
+      '(:eval (ed-frame-title)))
+
 (use-package vertico
   :init (vertico-mode 1)
   :config (setq vertico-cycle t))

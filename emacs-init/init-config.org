@@ -260,6 +260,134 @@ I have decided to apply it globally.
 (add-hook 'text-mode-hook #'visual-line-mode)
 #+end_src
 
+* Initial frame size and centered placement
+
+Open graphical Emacs frames at a predictable, readable size and center them
+inside the usable monitor area.
+
+The usable monitor area excludes reserved desktop space such as the Windows
+taskbar. The frame therefore receives approximately the same vertical gap above
+and below it without overlapping the taskbar.
+
+On wide and ultrawide monitors, the frame width is capped so that text does not
+stretch across the entire display. On narrower monitors, the frame automatically
+uses nearly all available width while preserving a small edge gap.
+
+The dimensions are expressed in pixels rather than character columns. This makes
+the result more predictable across font changes and monitors with different DPI
+settings.
+
+The placement is applied both to the initial Emacs frame and to graphical frames
+created later.
+
+#+begin_src emacs-lisp
+  (defcustom ed-frame-max-width-px 1200
+    "Maximum width of a normal graphical Emacs frame in pixels."
+    :type 'integer
+    :group 'ed)
+
+  (defcustom ed-frame-horizontal-gap-px 12
+    "Minimum gap between the frame and the monitor's horizontal edges."
+    :type 'integer
+    :group 'ed)
+
+  (defcustom ed-frame-vertical-gap-px 32
+    "Preferred gap above and below the frame."
+    :type 'integer
+    :group 'ed)
+
+  (defun ed-place-frame (&optional frame)
+    "Resize and center FRAME inside its monitor work area."
+    (let* ((frame (or frame (selected-frame)))
+           (monitor-attributes (frame-monitor-attributes frame))
+           (workarea (alist-get 'workarea monitor-attributes)))
+      (when (and (display-graphic-p frame)
+                 (listp workarea)
+                 (= (length workarea) 4))
+        (pcase-let ((`(,work-x ,work-y ,work-width ,work-height)
+                     workarea))
+          (let* ((available-width
+                  (max 400
+                       (- work-width
+                          (* 2 ed-frame-horizontal-gap-px))))
+                 (available-height
+                  (max 400
+                       (- work-height
+                          (* 2 ed-frame-vertical-gap-px))))
+                 (target-width
+                  (min ed-frame-max-width-px available-width))
+                 (target-height available-height)
+                 (left
+                  (+ work-x
+                     (/ (- work-width target-width) 2)))
+                 (top
+                  (+ work-y ed-frame-vertical-gap-px)))
+            (set-frame-size
+             frame target-width target-height t)
+            (set-frame-position frame left top))))))
+
+  (add-hook 'window-setup-hook #'ed-place-frame)
+  (add-hook 'after-make-frame-functions #'ed-place-frame)
+#+end_src
+
+* Privacy-safe frame title with unsaved-file count
+
+Replace the default Emacs frame title so that it does not expose the Windows
+machine name.
+
+The title shows the current file or buffer, the current project, and the total
+number of unsaved file-visiting buffers in the Emacs session. Buffers that do not
+represent files, such as =*Messages*= and =*eshell*=, are not included in the
+unsaved count.
+ 
+Only base file and project names are displayed. Full filesystem paths, account
+names, and machine names are intentionally omitted.
+
+Example titles:
+
+- =GNU Emacs - init-config.org - ed=
+- =GNU Emacs [1 unsaved] - init-config.org - ed=
+- =GNU Emacs [3 unsaved] - Program.cs - application=
+
+#+begin_src emacs-lisp
+  (require 'project)
+  (require 'seq)
+
+  (defun ed-modified-file-count ()
+    "Return the number of modified file-visiting buffers."
+    (seq-count
+     (lambda (buffer)
+       (with-current-buffer buffer
+         (and buffer-file-name
+              (buffer-modified-p))))
+     (buffer-list)))
+
+  (defun ed-frame-title ()
+    "Return a concise, privacy-safe title for the selected frame."
+    (let* ((buffer-label
+            (if buffer-file-name
+                (file-name-nondirectory buffer-file-name)
+              (buffer-name)))
+           (project-label
+            (when-let* ((current-project (project-current nil))
+                        (root (project-root current-project)))
+              (file-name-nondirectory
+               (directory-file-name root))))
+           (modified-count
+            (ed-modified-file-count)))
+      (concat
+       "GNU Emacs"
+       (when (> modified-count 0)
+         (format " [%d unsaved]" modified-count))
+       " - "
+       buffer-label
+       (when project-label
+         (format " - %s" project-label)))))
+
+  (setq frame-title-format
+        '(:eval (ed-frame-title)))
+#+end_src
+
 * Minibuffer completion - Vertico stack
 Replaces the old, heavy Helm with the modern, lean Vertico family. This is the
 piece both reviewers pushed hardest on for a developer navigating large repos.

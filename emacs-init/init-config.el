@@ -14,8 +14,20 @@
 (setq package-archive-priorities '(("gnu" . 10) ("nongnu" . 8) ("melpa" . 5)))
 
 (defconst ed-required-packages
-  '(vertico orderless marginalia consult embark embark-consult corfu cape
-    scala-mode powershell yaml-mode markdown-mode magit)
+  '(vertico
+    orderless
+    marginalia
+    consult
+    embark
+    embark-consult
+    corfu
+    cape
+    scala-mode
+    powershell
+    yaml-mode
+    markdown-mode
+    magit
+    nyan-mode)
   "External packages required by the committed ed configuration.")
 
 (defvar ed--installed-packages-this-startup nil
@@ -173,8 +185,11 @@
   (setq battery-mode-line-format " [\U0001F50B %p%%]")
   (display-battery-mode 1))
 
+;; Line numbers fixed width
+(setq-default display-line-numbers-width 4)
 ;; Programming-buffer niceties.
 (add-hook 'prog-mode-hook #'display-line-numbers-mode)
+(add-hook 'text-mode-hook #'display-line-numbers-mode)
 (add-hook 'prog-mode-hook #'electric-pair-local-mode)
 (add-hook 'prog-mode-hook
           (lambda () (setq-local show-trailing-whitespace t)))
@@ -330,6 +345,13 @@
   :init
   (add-to-list 'completion-at-point-functions #'cape-file)
   (add-to-list 'completion-at-point-functions #'cape-dabbrev))
+
+(use-package nyan-mode
+  :ensure t
+  :commands nyan-create
+  :init
+  (setq nyan-animate-nyancat nil
+        nyan-wavy-trail nil))
 
 (with-eval-after-load 'org
   (setq org-hide-emphasis-markers nil

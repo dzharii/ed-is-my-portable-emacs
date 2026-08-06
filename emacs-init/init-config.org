@@ -39,80 +39,92 @@ it. External packages get =:ensure t= automatically; built-ins are marked
 (=package-user-dir= is redirected off OneDrive in =early-init.el=.)
 
 #+begin_src emacs-lisp
-  (require 'package)
-  (require 'seq)
+    (require 'package)
+    (require 'seq)
 
-  (defgroup ed nil
-    "Portable ed configuration."
-    :group 'convenience)
+    (defgroup ed nil
+      "Portable ed configuration."
+      :group 'convenience)
 
-  (setq package-archives
-        '(("gnu"    . "https://elpa.gnu.org/packages/")
-          ("nongnu" . "https://elpa.nongnu.org/nongnu/")
-          ("melpa"  . "https://melpa.org/packages/")))
-  (setq package-archive-priorities '(("gnu" . 10) ("nongnu" . 8) ("melpa" . 5)))
+    (setq package-archives
+          '(("gnu"    . "https://elpa.gnu.org/packages/")
+            ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+            ("melpa"  . "https://melpa.org/packages/")))
+    (setq package-archive-priorities '(("gnu" . 10) ("nongnu" . 8) ("melpa" . 5)))
 
-  (defconst ed-required-packages
-    '(vertico orderless marginalia consult embark embark-consult corfu cape
-      scala-mode powershell yaml-mode markdown-mode magit)
-    "External packages required by the committed ed configuration.")
+    (defconst ed-required-packages
+      '(vertico
+        orderless
+        marginalia
+        consult
+        embark
+        embark-consult
+        corfu
+        cape
+        scala-mode
+        powershell
+        yaml-mode
+        markdown-mode
+        magit
+        nyan-mode)
+      "External packages required by the committed ed configuration.")
 
-  (defvar ed--installed-packages-this-startup nil
-    "Non-nil when ed installed at least one package during this startup.")
+    (defvar ed--installed-packages-this-startup nil
+      "Non-nil when ed installed at least one package during this startup.")
 
-  (unless package-archive-contents
-    (condition-case err
-        (package-refresh-contents)
-      (error
-       (display-warning
-        'ed
-        (format "Package archive refresh failed: %s" (error-message-string err))
-        :warning))))
-
-  ;; A use-package :init form runs before its package is required. On a truly
-  ;; clean profile that can call an autoload before it exists, so first-run
-  ;; bootstrap is explicit and finishes before any package-dependent form runs.
-  (defun ed--install-package-with-retry (package)
-    "Install PACKAGE, retrying transient archive failures up to three times."
-    (let ((attempt 0)
-          last-error)
-      (while (and (not (package-installed-p package)) (< attempt 3))
-        (setq attempt (1+ attempt))
-        (message "ed: installing first-run package %s (attempt %d/3)..."
-                 package attempt)
-        (condition-case err
-            (progn
-              (package-install package)
-              (setq ed--installed-packages-this-startup t))
-          (error
-           (setq last-error (error-message-string err))
-           (message "ed: package %s attempt %d failed: %s"
-                    package attempt last-error)
-           (when (< attempt 3)
-             (sleep-for (* attempt 2))))))
-      (unless (package-installed-p package)
+    (unless package-archive-contents
+      (condition-case err
+          (package-refresh-contents)
         (error
-         "ed could not install required package %s after 3 attempts: %s. Check the network and restart ed"
-         package last-error))))
+         (display-warning
+          'ed
+          (format "Package archive refresh failed: %s" (error-message-string err))
+          :warning))))
 
-  (dolist (package ed-required-packages)
-    (unless (package-installed-p package)
-      (ed--install-package-with-retry package)))
+    ;; A use-package :init form runs before its package is required. On a truly
+    ;; clean profile that can call an autoload before it exists, so first-run
+    ;; bootstrap is explicit and finishes before any package-dependent form runs.
+    (defun ed--install-package-with-retry (package)
+      "Install PACKAGE, retrying transient archive failures up to three times."
+      (let ((attempt 0)
+            last-error)
+        (while (and (not (package-installed-p package)) (< attempt 3))
+          (setq attempt (1+ attempt))
+          (message "ed: installing first-run package %s (attempt %d/3)..."
+                   package attempt)
+          (condition-case err
+              (progn
+                (package-install package)
+                (setq ed--installed-packages-this-startup t))
+            (error
+             (setq last-error (error-message-string err))
+             (message "ed: package %s attempt %d failed: %s"
+                      package attempt last-error)
+             (when (< attempt 3)
+               (sleep-for (* attempt 2))))))
+        (unless (package-installed-p package)
+          (error
+           "ed could not install required package %s after 3 attempts: %s. Check the network and restart ed"
+           package last-error))))
 
-  ;; Package byte compilation can create a *Warnings* window on the first run.
-  ;; Keep that diagnostic buffer, but do not let it replace the requested file.
-  (defun ed--dismiss-installation-warnings ()
-    "Keep first-run compiler warnings available without letting them steal the frame."
-    (when ed--installed-packages-this-startup
-      (dolist (name '("*Warnings*" "*Compile-Log*"))
-        (when-let ((buffer (get-buffer name)))
-          (delete-windows-on buffer)
-          (bury-buffer buffer)))))
-  (add-hook 'emacs-startup-hook #'ed--dismiss-installation-warnings 100)
+    (dolist (package ed-required-packages)
+      (unless (package-installed-p package)
+        (ed--install-package-with-retry package)))
 
-  (require 'use-package)
-  (setq use-package-always-ensure t
-        use-package-expand-minimally t)
+    ;; Package byte compilation can create a *Warnings* window on the first run.
+    ;; Keep that diagnostic buffer, but do not let it replace the requested file.
+    (defun ed--dismiss-installation-warnings ()
+      "Keep first-run compiler warnings available without letting them steal the frame."
+      (when ed--installed-packages-this-startup
+        (dolist (name '("*Warnings*" "*Compile-Log*"))
+          (when-let ((buffer (get-buffer name)))
+            (delete-windows-on buffer)
+            (bury-buffer buffer)))))
+    (add-hook 'emacs-startup-hook #'ed--dismiss-installation-warnings 100)
+
+    (require 'use-package)
+    (setq use-package-always-ensure t
+          use-package-expand-minimally t)
 #+end_src
 
 * Theme - modus-operandi (light, legible, low distraction)
@@ -233,8 +245,11 @@ Line numbers and matched-pair insertion are enabled only in programming buffers.
     (setq battery-mode-line-format " [\U0001F50B %p%%]")
     (display-battery-mode 1))
 
+  ;; Line numbers fixed width
+  (setq-default display-line-numbers-width 4)
   ;; Programming-buffer niceties.
   (add-hook 'prog-mode-hook #'display-line-numbers-mode)
+  (add-hook 'text-mode-hook #'display-line-numbers-mode)
   (add-hook 'prog-mode-hook #'electric-pair-local-mode)
   (add-hook 'prog-mode-hook
             (lambda () (setq-local show-trailing-whitespace t)))
@@ -452,6 +467,18 @@ VS Code-style, as-you-type popup completion that plugs straight into Eglot's
     :init
     (add-to-list 'completion-at-point-functions #'cape-file)
     (add-to-list 'completion-at-point-functions #'cape-dabbrev))
+#+end_src
+
+* Nyan-mode (Secret)
+Secret mode. can be enabled with =nyan-mode= command.
+
+#+begin_src emacs-lisp
+  (use-package nyan-mode
+    :ensure t
+    :commands nyan-create
+    :init
+    (setq nyan-animate-nyancat nil
+          nyan-wavy-trail nil))
 #+end_src
 
 * Org behavior

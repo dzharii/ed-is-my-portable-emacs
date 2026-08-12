@@ -432,6 +432,140 @@ this only when you explicitly want language-server features here."
   :bind ("C-x g" . magit-status)
   :config (setq magit-diff-refine-hunk 'all))
 
+(defun ed-git-root (&optional directory)
+    "Return the Git working-tree root containing DIRECTORY, or nil.
+
+DIRECTORY defaults to `default-directory'."
+    ;; Input: an Emacs directory name, or the current `default-directory'.
+    ;; Output: an absolute directory name with a trailing slash, or nil.
+    (let ((default-directory
+           (file-name-as-directory
+            (expand-file-name (or directory default-directory)))))
+      (when (executable-find "git")
+        (with-temp-buffer
+          (when (eq 0
+                    (process-file
+                     "git" nil t nil
+                     "rev-parse" "--show-toplevel"))
+            (goto-char (point-min))
+            (let ((root
+                   (buffer-substring-no-properties
+                    (line-beginning-position)
+                    (line-end-position))))
+              (unless (equal root "")
+                (file-name-as-directory
+                 (expand-file-name root)))))))))
+
+(defun ed-git-cd-root ()
+  "Change the current buffer's working directory to its Git root."
+  (interactive)
+  ;; `ed-git-root' is intentionally non-interactive, so this command provides
+  ;; the user-facing error when there is no repository to move to.
+  (let ((root (ed-git-root)))
+    (unless root
+      (user-error "Current directory is not inside a Git working tree"))
+    (cd root)
+    (message "ed: current directory is %s" root)))
+
+(defun ed-git-tracked-files (&optional root)
+    "Return tracked regular files in Git working tree ROOT.
+
+The returned filenames are relative to ROOT."
+    ;; Input: an optional repository root.
+    ;; Output: repository-relative file names suitable for passing to tools
+    ;; that run with `default-directory' bound to that root.
+    (let* ((root (or root (ed-git-root)))
+           (git (executable-find "git")))
+      (unless git
+        (user-error "git is not available on `exec-path'"))
+      (unless root
+        (user-error "Current directory is not inside a Git working tree"))
+
+      (let ((default-directory root))
+        (with-temp-buffer
+          (let ((coding-system-for-read 'utf-8-unix))
+            (unless (eq 0
+                        (process-file
+                         git nil t nil
+                         "ls-files" "--cached" "-z"))
+              (error "git ls-files failed in %s" root)))
+
+          ;; Keep only files that are actually present in the current working
+          ;; tree.  The Git index can still contain entries for files whose
+          ;; working-tree copy is currently absent.
+          (let ((files (split-string (buffer-string) "\0" t))
+                tracked-files)
+            (dolist (file files (nreverse tracked-files))
+              (when (file-regular-p file)
+                (push file tracked-files))))))))
+
+(defun ed-git-etags-create ()
+  "Create and visit TAGS for the current Git repository."
+  (interactive)
+
+  ;; Input: the repository containing `default-directory'.
+  ;; Output: <repository-root>/TAGS, registered as the current tags table.
+  (let* ((root (ed-git-root))
+         (etags (executable-find "etags")))
+    (unless root
+      (user-error "Current directory is not inside a Git working tree"))
+    (unless etags
+      (user-error "etags is not available on `exec-path'"))
+
+    (let* ((default-directory root)
+           (files (ed-git-tracked-files root))
+           (tags-file (expand-file-name "TAGS" root))
+           (output-buffer (get-buffer-create "*ed-etags*")))
+
+      (unless files
+        (user-error "Git repository contains no tracked regular files"))
+
+      ;; Keep diagnostic output available separately from the filename stream
+      ;; sent to ETAGS.  If ETAGS fails, this buffer becomes the useful place
+      ;; to inspect the reason.
+      (with-current-buffer output-buffer
+        (erase-buffer))
+
+      (with-temp-buffer
+        ;; ETAGS accepts "-" as a request to read file names from standard
+        ;; input.  This avoids depending on shell expansion or command-line
+        ;; length limits when a repository contains many files.
+        (dolist (file files)
+          (insert file "\n"))
+
+        (let ((coding-system-for-write 'utf-8-unix)
+              (status
+               (call-process-region
+                (point-min)
+                (point-max)
+                etags
+                nil
+                output-buffer
+                nil
+                "-")))
+          (unless (eq status 0)
+            (display-buffer output-buffer)
+            (error
+             "etags failed with exit status %s; see %s"
+             status
+             (buffer-name output-buffer)))))
+
+      ;; A successful process exit should have produced TAGS in
+      ;; `default-directory'.  Check that invariant before changing Emacs'
+      ;; active tags table.
+      (unless (file-exists-p tags-file)
+        (error "etags succeeded but did not create %s" tags-file))
+
+      (visit-tags-table tags-file)
+
+      (when (buffer-live-p output-buffer)
+        (kill-buffer output-buffer))
+
+      (message
+       "ed: created %s from %d tracked files"
+       tags-file
+       (length files)))))
+
 (require 'eshell)
 (setq eshell-directory-name (expand-file-name "eshell/" ed-cache-dir)
       eshell-history-file-name (expand-file-name "history" eshell-directory-name)

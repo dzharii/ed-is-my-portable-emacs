@@ -7,11 +7,32 @@
   "Portable ed configuration."
   :group 'convenience)
 
+(defvar ed-cache-dir
+  (file-name-as-directory
+   (expand-file-name "emacs-ed"
+                     (or (getenv "LOCALAPPDATA") temporary-file-directory)))
+  "Local, non-synced cache directory (mirrors early-init.el).")
+
+;; Configure the package archives used by the committed configuration.
 (setq package-archives
       '(("gnu"    . "https://elpa.gnu.org/packages/")
         ("nongnu" . "https://elpa.nongnu.org/nongnu/")
         ("melpa"  . "https://melpa.org/packages/")))
-(setq package-archive-priorities '(("gnu" . 10) ("nongnu" . 8) ("melpa" . 5)))
+
+(setq package-archive-priorities
+      '(("gnu" . 10)
+        ("nongnu" . 8)
+        ("melpa" . 5)))
+
+;; Keep package metadata current without refreshing it on every startup.
+(defcustom ed-package-archive-refresh-days 30
+  "Days between package archive refreshes."
+  :type 'integer
+  :group 'ed)
+
+(defconst ed-package-archive-refresh-stamp
+  (expand-file-name "package-archives.refreshed" ed-cache-dir)
+  "Timestamp for the last successful package archive refresh.")
 
 (defconst ed-required-packages
   '(vertico
@@ -30,17 +51,48 @@
     nyan-mode)
   "External packages required by the committed ed configuration.")
 
-(defvar ed--installed-packages-this-startup nil
-  "Non-nil when ed installed at least one package during this startup.")
+;; Load cached package metadata without contacting the network.
+(package-read-all-archive-contents)
 
-(unless package-archive-contents
+(defun ed--package-archive-refresh-due-p ()
+  "Return non-nil when package archive metadata should be refreshed."
+  (or
+   ;; Bootstrap when no usable local package metadata exists.
+   (null package-archive-contents)
+
+   ;; Refresh immediately when the configuration requires a missing package.
+   (seq-some
+    (lambda (package)
+      (not (package-installed-p package)))
+    ed-required-packages)
+
+   ;; A missing stamp means no successful scheduled refresh is recorded.
+   (not (file-exists-p ed-package-archive-refresh-stamp))
+
+   ;; Refresh when the recorded package metadata age reaches the configured limit.
+   (time-less-p
+    (time-add
+     (file-attribute-modification-time
+      (file-attributes ed-package-archive-refresh-stamp))
+     (days-to-time ed-package-archive-refresh-days))
+    (current-time))))
+
+;; Refresh monthly, or immediately when a required package is missing.
+(when (ed--package-archive-refresh-due-p)
   (condition-case err
-      (package-refresh-contents)
+      (progn
+        (package-refresh-contents)
+        (make-directory ed-cache-dir t)
+        (with-temp-file ed-package-archive-refresh-stamp)
+        (message "ed: package archives refreshed."))
     (error
      (display-warning
       'ed
       (format "Package archive refresh failed: %s" (error-message-string err))
       :warning))))
+
+(defvar ed--installed-packages-this-startup nil
+  "Non-nil when ed installed at least one package during this startup.")
 
 ;; A use-package :init form runs before its package is required. On a truly
 ;; clean profile that can call an autoload before it exists, so first-run
@@ -110,12 +162,6 @@
         (comment fg-dim)
         (string green-cooler)))
 (load-theme 'modus-operandi :no-confirm)
-
-(defvar ed-cache-dir
-  (file-name-as-directory
-   (expand-file-name "emacs-ed"
-                     (or (getenv "LOCALAPPDATA") temporary-file-directory)))
-  "Local, non-synced cache directory (mirrors early-init.el).")
 
 (let ((backups (expand-file-name "backups/" ed-cache-dir))
       (autos   (expand-file-name "auto-save/" ed-cache-dir)))

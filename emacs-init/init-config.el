@@ -87,6 +87,18 @@
 (setq use-package-always-ensure t
       use-package-expand-minimally t)
 
+(defcustom ed-rust-treesit-grammar-url
+  "https://github.com/casouri/tree-sitter-module/releases/download/v2.5/libs-windows-x64.zip"
+  "Precompiled grammar bundle containing the Rust tree-sitter parser."
+  :type 'string
+  :group 'ed)
+
+(defcustom ed-rust-treesit-grammar-sha256
+  "6534e33876db02053b3a2ebe730489a4a4b2472a9eebe213e183e81a61a34bab"
+  "Expected SHA-256 checksum of `ed-rust-treesit-grammar-url'."
+  :type 'string
+  :group 'ed)
+
 (setq modus-themes-italic-constructs t
       modus-themes-bold-constructs nil
       modus-themes-mixed-fonts t
@@ -357,13 +369,17 @@
   (setq org-hide-emphasis-markers nil
         org-pretty-entities t
         org-startup-folded 'content
-        org-return-follows-link t))
+        org-return-follows-link t)
+
+  ;; Edit Rust blocks with rust-ts-mode and tangle them as .rs files.
+  (add-to-list 'org-src-lang-modes '("rust" . rust-ts))
+  (add-to-list 'org-babel-tangle-lang-exts '("rust" . "rs")))
 
 (global-set-key (kbd "C-x C-b") #'ibuffer)
 (global-set-key (kbd "C-x k")   #'kill-current-buffer)
 
 ;; Eglot is loaded lazily and NEVER auto-started. No mode hook calls it, so
-  ;; merely opening a .cs/.scala/.ps1/etc. file will not launch any server.
+  ;; merely opening a .cs/.rs/.scala/.ps1/etc. file will not launch any server.
   (with-eval-after-load 'eglot
     ;; If you DO start Eglot manually, never let it reformat your buffer on save.
     (add-hook 'eglot-managed-mode-hook
@@ -387,6 +403,53 @@ this only when you explicitly want language-server features here."
     (interactive)
     (require 'eglot)
     (call-interactively #'eglot))
+
+(defun ed--rust-treesit-grammar-install (grammar-dir)
+    "Fetch the precompiled Rust tree-sitter grammar into GRAMMAR-DIR.
+Verifies the download against `ed-rust-treesit-grammar-sha256' before
+installing it, and always cleans up its own temporary files."
+    (let ((zip-file (make-temp-file "ed-rust-treesit-" nil ".zip"))
+          (extract-dir (make-temp-file "ed-rust-treesit-" t)))
+      (unwind-protect
+          (progn
+            (url-copy-file ed-rust-treesit-grammar-url zip-file t)
+            ;; Trust only a download matching the pinned checksum.
+            (let ((actual (with-temp-buffer
+                            (insert-file-contents-literally zip-file)
+                            (secure-hash 'sha256 (current-buffer)))))
+              (unless (string-equal-ignore-case
+                       actual ed-rust-treesit-grammar-sha256)
+                (error "ed: Rust grammar download failed checksum verification")))
+            (call-process "powershell" nil nil nil
+                          "-NoProfile" "-Command"
+                          (format "Expand-Archive -LiteralPath '%s' -DestinationPath '%s' -Force"
+                                  zip-file extract-dir))
+            (make-directory grammar-dir t)
+            (copy-file (expand-file-name "dist/libtree-sitter-rust.dll" extract-dir)
+                       (expand-file-name "libtree-sitter-rust.dll" grammar-dir)
+                       t))
+        (ignore-errors (delete-file zip-file))
+        (ignore-errors (delete-directory extract-dir t)))))
+
+  (use-package rust-ts-mode
+    :ensure nil
+    :init
+    (require 'treesit)
+
+    (unless (treesit-available-p)
+      (error "ed: this Emacs build does not support tree-sitter"))
+
+    (let ((grammar-dir (expand-file-name "tree-sitter/" ed-cache-dir)))
+      (add-to-list 'treesit-extra-load-path grammar-dir)
+
+      ;; Fetch the precompiled grammar once, then reuse the cached copy.
+      (unless (treesit-language-available-p 'rust)
+        (ed--rust-treesit-grammar-install grammar-dir))
+
+      (unless (treesit-language-available-p 'rust)
+        (error "ed: Rust tree-sitter grammar is unavailable")))
+
+    :mode ("\\.rs\\'" . rust-ts-mode))
 
 (use-package scala-mode
   :interpreter ("scala" . scala-mode))

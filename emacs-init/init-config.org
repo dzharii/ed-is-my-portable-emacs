@@ -299,12 +299,14 @@ I have decided to apply it globally.
 
 * Initial frame size and centered placement
 
-Open graphical Emacs frames at a predictable, readable size and center them
-inside the usable monitor area.
+Open graphical Emacs frames at a predictable, readable size, horizontally
+centered and pinned to the top of the usable monitor area.
 
 The usable monitor area excludes reserved desktop space such as the Windows
-taskbar. The frame therefore receives approximately the same vertical gap above
-and below it without overlapping the taskbar.
+taskbar. The frame height is a fixed pixel value tuned to stay clear of the
+taskbar instead of a computed fraction of the work area (Emacs rounds frame
+height up to whole text rows, which made a computed height overshoot the
+taskbar on some monitors).
 
 On wide and ultrawide monitors, the frame width is capped so that text does not
 stretch across the entire display. On narrower monitors, the frame automatically
@@ -328,13 +330,16 @@ created later.
     :type 'integer
     :group 'ed)
 
-  (defcustom ed-frame-vertical-gap-px 32
-    "Preferred gap above and below the frame."
+  (defcustom ed-frame-height-px 925
+    "Native frame height in pixels passed to `set-frame-size'.
+The title bar, menu bar, and window borders add a fixed amount on top of
+this, so the on-screen window ends up taller than this number (currently
+~1020px on screen for this value)."
     :type 'integer
     :group 'ed)
 
   (defun ed-place-frame (&optional frame)
-    "Resize and center FRAME inside its monitor work area."
+    "Resize FRAME to a fixed height and pin it to the top of the work area."
     (let* ((frame (or frame (selected-frame)))
            (monitor-attributes (frame-monitor-attributes frame))
            (workarea (alist-get 'workarea monitor-attributes)))
@@ -347,18 +352,13 @@ created later.
                   (max 400
                        (- work-width
                           (* 2 ed-frame-horizontal-gap-px))))
-                 (available-height
-                  (max 400
-                       (- work-height
-                          (* 2 ed-frame-vertical-gap-px))))
                  (target-width
                   (min ed-frame-max-width-px available-width))
-                 (target-height available-height)
+                 (target-height ed-frame-height-px)
                  (left
                   (+ work-x
                      (/ (- work-width target-width) 2)))
-                 (top
-                  (+ work-y ed-frame-vertical-gap-px)))
+                 (top work-y))
             (set-frame-size
              frame target-width target-height t)
             (set-frame-position frame left top))))))

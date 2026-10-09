@@ -213,6 +213,41 @@
 (delete-selection-mode 1)         ; typing replaces the active region (modern)
 (global-so-long-mode 1)           ; stay responsive in huge/minified files
 
+(defvar ed--buffer-save-timer nil
+  "Timer for saving modified files after a window or focus change.")
+
+(defun ed--buffer-save-modified ()
+  "Save all modified, writable file-visiting buffers without prompting."
+  (setq ed--buffer-save-timer nil)
+  (save-some-buffers
+   t
+   (lambda ()
+     (and buffer-file-name
+          (buffer-modified-p)
+          (not buffer-read-only)))))
+
+(defun ed--buffer-save-schedule (&optional _frame)
+  "Schedule a save outside window and focus change callbacks."
+  (unless (timerp ed--buffer-save-timer)
+    (setq ed--buffer-save-timer
+          (run-with-timer 0 nil #'ed--buffer-save-modified))))
+
+(defun ed--buffer-save-on-focus-loss ()
+  "Schedule a save when no Emacs frame has input focus."
+  (unless (seq-some
+           (lambda (frame)
+             (eq (frame-focus-state frame) t))
+           (frame-list))
+    (ed--buffer-save-schedule)))
+
+;; Switching between Emacs windows, including C-x o.
+(add-hook 'window-selection-change-functions
+          #'ed--buffer-save-schedule)
+
+;; Switching from Emacs to another application.
+(add-function :after after-focus-change-function
+              #'ed--buffer-save-on-focus-loss)
+
 ;; Precise, modern trackpad/wheel scrolling; keep old keyboard scroll sane too.
 (when (fboundp 'pixel-scroll-precision-mode)
   (pixel-scroll-precision-mode 1))
@@ -672,6 +707,150 @@ The returned filenames are relative to ROOT."
        "ed: created %s from %d tracked files"
        tags-file
        (length files)))))
+
+(require 'subr-x)
+
+(defconst ed--ed-git-status-buffer "*ed Git Status*"
+    "Buffer showing the ed configuration repository status.")
+
+  (defconst ed--ed-git-push-buffer "*ed Git Push*"
+    "Buffer showing staged changes and push output.")
+
+  (defun ed--ed-git-root ()
+    "Return the Git working-tree root containing the ed configuration."
+    (unless (executable-find "git")
+      (user-error "Git is not available on exec-path"))
+    (or (ed-git-root user-emacs-directory)
+        (user-error "ed configuration is not inside a Git working tree: %s"
+                    user-emacs-directory)))
+
+  (defun ed--ed-git-run (&rest args)
+    "Run Git with ARGS in the ed checkout and return its combined output.
+Signal an error on failure; never invoke a shell. Disable Git colors and
+escape unusual filename bytes for terminal-safe status displays."
+    (with-temp-buffer
+      (let ((default-directory (ed--ed-git-root))
+            (coding-system-for-read 'utf-8-unix))
+        (let ((exit (apply #'process-file "git" nil t nil
+                           (append '("-c" "color.ui=false"
+                                     "-c" "core.quotepath=true")
+                                   args))))
+          (unless (equal exit 0)
+            (error "git %s failed (%s): %s"
+                   (car args) exit (string-trim (buffer-string))))
+          (buffer-string)))))
+
+  (defun ed--ed-git-save-modified ()
+    "Save modified file-visiting buffers belonging to the ed checkout."
+    (let ((root (ed--ed-git-root)))
+      (save-some-buffers
+       t
+       (lambda ()
+         (and buffer-file-name
+              (buffer-modified-p)
+              (file-in-directory-p buffer-file-name root))))))
+
+  (define-derived-mode ed--ed-git-status-mode special-mode "ed Git"
+    "Read-only mode for the ed configuration repository status.")
+
+  (define-key ed--ed-git-status-mode-map (kbd "g") #'ed-ed-git-status)
+  (define-key ed--ed-git-status-mode-map (kbd "p") #'ed-ed-git-push)
+
+  (defun ed-ed-git-status ()
+    "Show changed files in the ed configuration Git repository."
+    (interactive)
+    (ed--ed-git-save-modified)
+    (let* ((root (ed--ed-git-root))
+           (raw (ed--ed-git-run "status" "--porcelain=v1" "--branch"
+                                 "--untracked-files=all"))
+           (lines (split-string raw "\n" t))
+           (branch (string-remove-prefix "## " (or (car lines) "unknown")))
+           (changes (cdr lines))
+           (stat (ed--ed-git-run "diff" "--stat" "HEAD"))
+           (buffer (get-buffer-create ed--ed-git-status-buffer)))
+      (with-current-buffer buffer
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (insert "ED CONFIGURATION - GIT STATUS\n"
+                  "Repository: " root "\n"
+                  "Branch:     " branch "\n\n"
+                  "Changed files (XY = index/worktree):\n")
+          (if changes
+              (dolist (line changes)
+                (insert "  " (substring line 0 2)
+                        "  " (substring line 3) "\n"))
+            (insert "  Working tree clean\n"))
+          (insert "\n  M modified   A added   D deleted\n"
+                  "  R renamed    ?? untracked\n"
+                  "\nTracked file statistics:\n")
+          (insert (if (string-empty-p stat)
+                      "  No tracked-file changes.\n"
+                    stat))
+          (insert "\nBinary tracked changes appear as 'Bin' above.\n"
+                  "Untracked files appear in the changed files list.\n"
+                  "\ng: refresh   p: stage, commit and push   q: quit\n")
+          (goto-char (point-min))
+          (ed--ed-git-status-mode)))
+      (pop-to-buffer buffer)))
+
+  (defun ed-ed-git-push (&optional message-text)
+    "Stage, commit, and push changes in the ed configuration repository.
+Prompt for MESSAGE-TEXT; when empty, use a timestamped default.
+Never pull, and stop immediately if a Git step fails."
+    (interactive (list (read-string "Commit message (blank = timestamp): ")))
+    (ed--ed-git-save-modified)
+    (let* ((commit-text (if (string-empty-p (string-trim (or message-text "")))
+                            (format "Configuration updated %s"
+                                    (format-time-string "%Y-%m-%dT%H:%M (%a)"))
+                          (string-trim message-text)))
+           (changes (ed--ed-git-run "status" "--porcelain=v1"
+                                     "--untracked-files=all"))
+           (buffer (get-buffer-create ed--ed-git-push-buffer)))
+      (if (string-empty-p changes)
+          (progn
+            (unless (yes-or-no-p "No new changes. Push existing commits? ")
+              (user-error "Push cancelled"))
+            (let ((output (ed--ed-git-run "push")))
+              (with-current-buffer buffer
+                (let ((inhibit-read-only t))
+                  (erase-buffer)
+                  (insert "Git push (no new commit)\n\n"
+                          (if (string-empty-p output) "Push succeeded.\n" output))
+                  (goto-char (point-min))
+                  (special-mode)))
+              (pop-to-buffer buffer)
+              (message "ed: existing commits pushed")))
+        (ed--ed-git-run "add" "-A")
+        (let ((files (ed--ed-git-run "diff" "--cached" "--name-status"))
+              (stat (ed--ed-git-run "diff" "--cached" "--stat")))
+          (when (string-empty-p files)
+            (user-error "Nothing staged for commit"))
+          (with-current-buffer buffer
+            (let ((inhibit-read-only t))
+              (erase-buffer)
+              (insert "ED CONFIGURATION - REVIEW STAGED CHANGES\n\n"
+                      "Commit: " commit-text "\n\n"
+                      files "\n" stat
+                      "\nReview the staged files and binary markers before confirming.\n")
+              (goto-char (point-min))
+              (special-mode)))
+          (pop-to-buffer buffer)
+          (unless (yes-or-no-p "Commit ALL staged changes and push? ")
+            (user-error "Cancelled; changes remain staged"))
+          (let ((commit-output (ed--ed-git-run "commit" "-m" commit-text)))
+            (with-current-buffer buffer
+              (let ((inhibit-read-only t))
+                (goto-char (point-max))
+                (insert "\nCommit result:\n" commit-output)))
+            (let ((push-output (ed--ed-git-run "push")))
+              (with-current-buffer buffer
+                (let ((inhibit-read-only t))
+                  (goto-char (point-max))
+                  (insert "\nPush result:\n"
+                          (if (string-empty-p push-output)
+                              "Push succeeded.\n"
+                            push-output)))))
+            (message "ed: configuration committed and pushed"))))))
 
 (require 'eshell)
 (setq eshell-directory-name (expand-file-name "eshell/" ed-cache-dir)

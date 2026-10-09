@@ -1067,6 +1067,19 @@ Small personal helpers carried over from the old config (renamed =summon-= ->
       (user-error "This buffer does not visit a file")))
 #+end_src
 
+* Key bindings
+
+** Map F12 to insert semicolon at the end of the line
+#+begin_src emacs-lisp
+  (global-set-key (kbd "<f12>")
+  (lambda ()
+    (interactive)
+    ;; Keep cursor motion within this block (don't move the users cursor).
+    (save-excursion
+      ;; Typically mapped to the "End" key.
+      (call-interactively 'move-end-of-line)
+      (insert ";"))))
+#+end_src
 * End
 That's the whole config. To change anything, edit this file and run =M-x
 ed-reload-config= (or restart with =ed=).

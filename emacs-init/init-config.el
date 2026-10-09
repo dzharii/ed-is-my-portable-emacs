@@ -783,3 +783,12 @@ The returned filenames are relative to ROOT."
       (progn (kill-new (file-truename buffer-file-name))
              (message "Copied %s" buffer-file-name))
     (user-error "This buffer does not visit a file")))
+
+(global-set-key (kbd "<f12>")
+(lambda ()
+  (interactive)
+  ;; Keep cursor motion within this block (don't move the users cursor).
+  (save-excursion
+    ;; Typically mapped to the "End" key.
+    (call-interactively 'move-end-of-line)
+    (insert ";"))))

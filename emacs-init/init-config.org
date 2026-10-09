@@ -1151,7 +1151,6 @@ literally. Actual file paths are not altered.
               (message "ed: configuration committed and pushed"))))))
 #+end_src
 * Eshell - startup shell in the invocation directory, and the C-` toggle
-Two things here:
 1. When Emacs starts with *no file arguments* (i.e. you just ran =ed= in a folder),
    open an Eshell rooted at that folder - a fast "terminal here" landing.
 2. Keep the VS Code-style =C-`= toggle that pops a bottom Eshell pane. This was the
@@ -1214,6 +1213,34 @@ strip =pcomplete= (both reviewers noted that breaks Eshell's own tab-completion)
 
   (global-set-key (kbd "C-`") #'ed-eshell-toggle)
   (global-set-key (kbd "C-c t") #'ed-eshell-toggle)
+#+end_src
+
+Display the local execution time and original command immediately before
+each command's output. Timestamps use 24-hour HH:MM:SS format.
+
+The timestamp and command are displayed using the built-in =shadow= face
+for subtle gray text. The display uses ASCII characters and works in
+both graphical and terminal Emacs.
+
+Uses Eshell's input filter hook, which runs after a complete command
+is accepted but before its execution. No external programs or timers
+are required.
+
+#+begin_src emacs-lisp
+  (defun ed--eshell-command-timestamp ()
+    "Display the local time and submitted command before Eshell output."
+    (let ((command (buffer-substring-no-properties
+                    eshell-last-input-start
+                    (1- eshell-last-input-end))))
+      (eshell-interactive-print
+       (propertize
+        (format "[%s] %s\n"
+                (format-time-string "%H:%M:%S")
+                command)
+        'face 'shadow))))
+
+  (add-hook 'eshell-input-filter-functions
+            #'ed--eshell-command-timestamp)
 #+end_src
 
 * Subtle active/inactive frame color (kept, but robust)

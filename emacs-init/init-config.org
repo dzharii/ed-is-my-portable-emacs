@@ -39,144 +39,145 @@ is missing. Required external packages are installed automatically when needed.
 Package files and archive state stay under the local =ed-cache-dir=.
 
 #+begin_src emacs-lisp
-    (require 'package)
-    (require 'seq)
+  (require 'package)
+  (require 'seq)
 
-    (defgroup ed nil
-      "Portable ed configuration."
-      :group 'convenience)
+  (defgroup ed nil
+    "Portable ed configuration."
+    :group 'convenience)
 
-    (defvar ed-cache-dir
-      (file-name-as-directory
-       (expand-file-name "emacs-ed"
-                         (or (getenv "LOCALAPPDATA") temporary-file-directory)))
-      "Local, non-synced cache directory (mirrors early-init.el).")
+  (defvar ed-cache-dir
+    (file-name-as-directory
+     (expand-file-name "emacs-ed"
+                       (or (getenv "LOCALAPPDATA") temporary-file-directory)))
+    "Local, non-synced cache directory (mirrors early-init.el).")
 
-    ;; Configure the package archives used by the committed configuration.
-    (setq package-archives
-          '(("gnu"    . "https://elpa.gnu.org/packages/")
-            ("nongnu" . "https://elpa.nongnu.org/nongnu/")
-            ("melpa"  . "https://melpa.org/packages/")))
+  ;; Configure the package archives used by the committed configuration.
+  (setq package-archives
+        '(("gnu"    . "https://elpa.gnu.org/packages/")
+          ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+          ("melpa"  . "https://melpa.org/packages/")))
 
-    (setq package-archive-priorities
-          '(("gnu" . 10)
-            ("nongnu" . 8)
-            ("melpa" . 5)))
+  (setq package-archive-priorities
+        '(("gnu" . 10)
+          ("nongnu" . 8)
+          ("melpa" . 5)))
 
-    ;; Keep package metadata current without refreshing it on every startup.
-    (defcustom ed-package-archive-refresh-days 30
-      "Days between package archive refreshes."
-      :type 'integer
-      :group 'ed)
+  ;; Keep package metadata current without refreshing it on every startup.
+  (defcustom ed-package-archive-refresh-days 30
+    "Days between package archive refreshes."
+    :type 'integer
+    :group 'ed)
 
-    (defconst ed-package-archive-refresh-stamp
-      (expand-file-name "package-archives.refreshed" ed-cache-dir)
-      "Timestamp for the last successful package archive refresh.")
+  (defconst ed-package-archive-refresh-stamp
+    (expand-file-name "package-archives.refreshed" ed-cache-dir)
+    "Timestamp for the last successful package archive refresh.")
 
-    (defconst ed-required-packages
-      '(vertico
-        orderless
-        marginalia
-        consult
-        embark
-        embark-consult
-        corfu
-        cape
-        scala-mode
-        powershell
-        yaml-mode
-        markdown-mode
-        magit
-        nyan-mode)
-      "External packages required by the committed ed configuration.")
+  (defconst ed-required-packages
+    '(vertico
+      orderless
+      marginalia
+      consult
+      embark
+      embark-consult
+      corfu
+      cape
+      scala-mode
+      powershell
+      yaml-mode
+      markdown-mode
+      magit
+      nyan-mode
+      move-text)
+    "External packages required by the committed ed configuration.")
 
-    ;; Load cached package metadata without contacting the network.
-    (package-read-all-archive-contents)
+  ;; Load cached package metadata without contacting the network.
+  (package-read-all-archive-contents)
 
-    (defun ed--package-archive-refresh-due-p ()
-      "Return non-nil when package archive metadata should be refreshed."
-      (or
-       ;; Bootstrap when no usable local package metadata exists.
-       (null package-archive-contents)
+  (defun ed--package-archive-refresh-due-p ()
+    "Return non-nil when package archive metadata should be refreshed."
+    (or
+     ;; Bootstrap when no usable local package metadata exists.
+     (null package-archive-contents)
 
-       ;; Refresh immediately when the configuration requires a missing package.
-       (seq-some
-        (lambda (package)
-          (not (package-installed-p package)))
-        ed-required-packages)
+     ;; Refresh immediately when the configuration requires a missing package.
+     (seq-some
+      (lambda (package)
+        (not (package-installed-p package)))
+      ed-required-packages)
 
-       ;; A missing stamp means no successful scheduled refresh is recorded.
-       (not (file-exists-p ed-package-archive-refresh-stamp))
+     ;; A missing stamp means no successful scheduled refresh is recorded.
+     (not (file-exists-p ed-package-archive-refresh-stamp))
 
-       ;; Refresh when the recorded package metadata age reaches the configured limit.
-       (time-less-p
-        (time-add
-         (file-attribute-modification-time
-          (file-attributes ed-package-archive-refresh-stamp))
-         (days-to-time ed-package-archive-refresh-days))
-        (current-time))))
+     ;; Refresh when the recorded package metadata age reaches the configured limit.
+     (time-less-p
+      (time-add
+       (file-attribute-modification-time
+        (file-attributes ed-package-archive-refresh-stamp))
+       (days-to-time ed-package-archive-refresh-days))
+      (current-time))))
 
-    ;; Refresh monthly, or immediately when a required package is missing.
-    (when (ed--package-archive-refresh-due-p)
-      (condition-case err
-          (progn
-            (package-refresh-contents)
-            (make-directory ed-cache-dir t)
-            (with-temp-file ed-package-archive-refresh-stamp)
-            (message "ed: package archives refreshed."))
-        (error
-         (display-warning
-          'ed
-          (format "Package archive refresh failed: %s" (error-message-string err))
-          :warning))))
+  ;; Refresh monthly, or immediately when a required package is missing.
+  (when (ed--package-archive-refresh-due-p)
+    (condition-case err
+        (progn
+          (package-refresh-contents)
+          (make-directory ed-cache-dir t)
+          (with-temp-file ed-package-archive-refresh-stamp)
+          (message "ed: package archives refreshed."))
+      (error
+       (display-warning
+        'ed
+        (format "Package archive refresh failed: %s" (error-message-string err))
+        :warning))))
 
-    (defvar ed--installed-packages-this-startup nil
-      "Non-nil when ed installed at least one package during this startup.")
+  (defvar ed--installed-packages-this-startup nil
+    "Non-nil when ed installed at least one package during this startup.")
 
-    ;; A use-package :init form runs before its package is required. On a truly
-    ;; clean profile that can call an autoload before it exists, so first-run
-    ;; bootstrap is explicit and finishes before any package-dependent form runs.
-    (defun ed--install-package-with-retry (package)
-      "Install PACKAGE, retrying transient archive failures up to three times."
-      (let ((attempt 0)
-            last-error)
-        (while (and (not (package-installed-p package)) (< attempt 3))
-          (setq attempt (1+ attempt))
-          (message "ed: installing first-run package %s (attempt %d/3)..."
-                   package attempt)
-          (condition-case err
-              (progn
-                (package-install package)
-                (setq ed--installed-packages-this-startup t))
-            (error
-             (setq last-error (error-message-string err))
-             (message "ed: package %s attempt %d failed: %s"
-                      package attempt last-error)
-             (when (< attempt 3)
-               (sleep-for (* attempt 2))))))
-        (unless (package-installed-p package)
+  ;; A use-package :init form runs before its package is required. On a truly
+  ;; clean profile that can call an autoload before it exists, so first-run
+  ;; bootstrap is explicit and finishes before any package-dependent form runs.
+  (defun ed--install-package-with-retry (package)
+    "Install PACKAGE, retrying transient archive failures up to three times."
+    (let ((attempt 0)
+          last-error)
+      (while (and (not (package-installed-p package)) (< attempt 3))
+        (setq attempt (1+ attempt))
+        (message "ed: installing first-run package %s (attempt %d/3)..."
+                 package attempt)
+        (condition-case err
+            (progn
+              (package-install package)
+              (setq ed--installed-packages-this-startup t))
           (error
-           "ed could not install required package %s after 3 attempts: %s. Check the network and restart ed"
-           package last-error))))
-
-    (dolist (package ed-required-packages)
+           (setq last-error (error-message-string err))
+           (message "ed: package %s attempt %d failed: %s"
+                    package attempt last-error)
+           (when (< attempt 3)
+             (sleep-for (* attempt 2))))))
       (unless (package-installed-p package)
-        (ed--install-package-with-retry package)))
+        (error
+         "ed could not install required package %s after 3 attempts: %s. Check the network and restart ed"
+         package last-error))))
 
-    ;; Package byte compilation can create a *Warnings* window on the first run.
-    ;; Keep that diagnostic buffer, but do not let it replace the requested file.
-    (defun ed--dismiss-installation-warnings ()
-      "Keep first-run compiler warnings available without letting them steal the frame."
-      (when ed--installed-packages-this-startup
-        (dolist (name '("*Warnings*" "*Compile-Log*"))
-          (when-let ((buffer (get-buffer name)))
-            (delete-windows-on buffer)
-            (bury-buffer buffer)))))
-    (add-hook 'emacs-startup-hook #'ed--dismiss-installation-warnings 100)
+  (dolist (package ed-required-packages)
+    (unless (package-installed-p package)
+      (ed--install-package-with-retry package)))
 
-    (require 'use-package)
-    (setq use-package-always-ensure t
-          use-package-expand-minimally t)
+  ;; Package byte compilation can create a *Warnings* window on the first run.
+  ;; Keep that diagnostic buffer, but do not let it replace the requested file.
+  (defun ed--dismiss-installation-warnings ()
+    "Keep first-run compiler warnings available without letting them steal the frame."
+    (when ed--installed-packages-this-startup
+      (dolist (name '("*Warnings*" "*Compile-Log*"))
+        (when-let ((buffer (get-buffer name)))
+          (delete-windows-on buffer)
+          (bury-buffer buffer)))))
+  (add-hook 'emacs-startup-hook #'ed--dismiss-installation-warnings 100)
+
+  (require 'use-package)
+  (setq use-package-always-ensure t
+        use-package-expand-minimally t)
 #+end_src
 
 * Rust tree-sitter source
@@ -595,6 +596,29 @@ Secret mode. can be enabled with =nyan-mode= command.
     :init
     (setq nyan-animate-nyancat nil
           nyan-wavy-trail nil))
+#+end_src
+* Move Text
+https://github.com/emacsfodder/move-text
+I can move text up and down now with =M-up= and =M-down=
+
+#+begin_src emacs-lisp
+  (use-package move-text
+    :ensure t)
+  (move-text-default-bindings)
+#+end_src
+
+=@jbreeden= gave us this useful function advice to have Emacs re-indent the text in-and-around a text move.
+
+#+begin_src emacs-lisp
+(defun indent-region-advice (&rest ignored)
+  (let ((deactivate deactivate-mark))
+    (if (region-active-p)
+        (indent-region (region-beginning) (region-end))
+      (indent-region (line-beginning-position) (line-end-position)))
+    (setq deactivate-mark deactivate)))
+
+(advice-add 'move-text-up :after 'indent-region-advice)
+(advice-add 'move-text-down :after 'indent-region-advice)
 #+end_src
 
 * Org behavior

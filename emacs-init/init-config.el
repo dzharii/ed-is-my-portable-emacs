@@ -48,7 +48,8 @@
     yaml-mode
     markdown-mode
     magit
-    nyan-mode)
+    nyan-mode
+    move-text)
   "External packages required by the committed ed configuration.")
 
 ;; Load cached package metadata without contacting the network.
@@ -443,6 +444,20 @@ this, so the on-screen window ends up taller than this number (currently
   :init
   (setq nyan-animate-nyancat nil
         nyan-wavy-trail nil))
+
+(use-package move-text
+  :ensure t)
+(move-text-default-bindings)
+
+(defun indent-region-advice (&rest ignored)
+  (let ((deactivate deactivate-mark))
+    (if (region-active-p)
+        (indent-region (region-beginning) (region-end))
+      (indent-region (line-beginning-position) (line-end-position)))
+    (setq deactivate-mark deactivate)))
+
+(advice-add 'move-text-up :after 'indent-region-advice)
+(advice-add 'move-text-down :after 'indent-region-advice)
 
 (with-eval-after-load 'org
   (setq org-hide-emphasis-markers nil
@@ -905,6 +920,21 @@ Never pull, and stop immediately if a Git step fails."
 
 (global-set-key (kbd "C-`") #'ed-eshell-toggle)
 (global-set-key (kbd "C-c t") #'ed-eshell-toggle)
+
+(defun ed--eshell-command-timestamp ()
+  "Display the local time and submitted command before Eshell output."
+  (let ((command (buffer-substring-no-properties
+                  eshell-last-input-start
+                  (1- eshell-last-input-end))))
+    (eshell-interactive-print
+     (propertize
+      (format "[%s] %s\n"
+              (format-time-string "%H:%M:%S")
+              command)
+      'face 'shadow))))
+
+(add-hook 'eshell-input-filter-functions
+          #'ed--eshell-command-timestamp)
 
 (defun ed--refresh-focus-modeline ()
   "Dim the mode-line a touch when no Emacs frame has focus."

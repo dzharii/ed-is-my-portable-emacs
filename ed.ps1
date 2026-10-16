@@ -7,7 +7,8 @@ Launches the repository's portable Emacs configuration.
 Opens Emacs in the current directory or in the directory represented by the
 optional path. The launcher prefers the repository's portable runtime. On a
 first run it clearly offers to download and install Emacs; no download starts
-until the user approves it.
+until the user approves it. Missing portable spelling tools install automatically;
+installed spelling tools use local file checks only. Version pins: lib\Ed.Spelling.ps1.
 #>
 [CmdletBinding()]
 param(
@@ -23,6 +24,7 @@ if ($env:OS -ne 'Windows_NT') {
 }
 
 . (Join-Path $PSScriptRoot 'lib\Ed.Common.ps1')
+. (Join-Path $PSScriptRoot 'lib\Ed.Spelling.ps1')
 
 function Stop-WithError {
     param(
@@ -122,7 +124,7 @@ $emacs = Resolve-EdEmacsExecutable -RuntimeRoot $runtimeRoot -CurrentBinFile $cu
 if (-not $emacs) {
     Write-Host ''
     Write-Host 'ed: portable Emacs is not installed yet.' -ForegroundColor Yellow
-    Write-Host '    The installer will download the official GNU Emacs 30.2 ZIP' -ForegroundColor White
+    Write-Host '    The installer will download the official GNU Emacs Windows ZIP' -ForegroundColor White
     Write-Host "    into $repoRoot\downloads and extract it under runtime." -ForegroundColor White
     Write-Host '    The installer will ask for approval before any download.' -ForegroundColor White
     Write-Host ''
@@ -148,6 +150,16 @@ if (-not $emacs) {
         )
     }
 }
+
+# Provision spelling tools before Emacs starts, so only this process inherits PATH.
+# Offline/restricted machines can still launch Emacs if the optional tools fail.
+try {
+    Install-EdSpelling -RepositoryRoot $repoRoot
+}
+catch {
+    Write-Warning "ed: spelling tools unavailable: $($_.Exception.Message). Run install-spelling.cmd to retry."
+}
+Set-EdSpellingEnvironment -RepositoryRoot $repoRoot
 
 $startDirForElisp = $startDir.TrimEnd([char[]]@([char]92, [char]47)) + '/'
 $openedFileValue = if ($openFile) { 't' } else { 'nil' }

@@ -649,10 +649,188 @@ Keep Org markup editable while improving navigation and document startup.
 (global-set-key (kbd "C-x k")   #'kill-current-buffer)
 #+end_src
 
+* Spelling: portable Hunspell and automatic typos diagnostics
+The launcher automatically installs the pinned Windows Hunspell and =typos=
+executables in =runtime/=, downloads the LibreOffice =en_US= dictionary, and
+exposes their directories only to Emacs and its child processes. If the download
+is unavailable, Emacs still starts with a warning. Installed tools need only
+local file checks: no network, archive hashing, directory scans or installer lock.
+No administrator access, persistent PATH change, Node.js or Rust is needed.
+The launcher also sets Hunspell's default dictionary for Windows dictionary discovery.
+To install or retry manually, run =.\install-spelling.cmd= from the repository
+root. Version and checksum pins are at the top of =lib\Ed.Spelling.ps1=.
+
+** Flyspell (Hunspell): prose, comments and strings
+Flyspell handles ordinary English text, plus comments and strings in code.
+Place the cursor on an underlined word:
+
+| Command                                  | Action                                   |
+|------------------------------------------+------------------------------------------|
+| =M-$= (Alt+Shift+4 on a US keyboard)     | Show Hunspell suggestions; choose a fix. |
+| =C-;=                                    | Correct the previous misspelled word.    |
+| =M-x flyspell-correct-word-before-point= | Open the correction menu at the cursor.  |
+
+=M= means Alt; =C= means Ctrl. Repeat =C-;= to cycle through corrections.
+Use =flyspell-correct-word-before-point= from the keyboard;
+=flyspell-correct-word= itself expects a mouse event.
+
+** typos: code identifiers and JSON keys
+=typos= checks known mistakes in source identifiers (including camelCase and
+snake_case) and JSON keys. Flymake runs it in the background as you edit;
+it shows suggestions but does *not* apply them.
+
+Run =M-x flymake-show-buffer-diagnostics=, inspect the suggested replacement,
+then edit the identifier manually. For project-specific exceptions, add an
+=_typos.toml= file at the project root.
+
+To preview or apply fixes from a terminal, save the file first. From the
+repository root:
+
+#+begin_src bat :tangle no
+.\ed-typos.cmd --diff path\to\file.js
+.\ed-typos.cmd --write-changes path\to\file.js
+#+end_src
+
+=--diff= previews changes; =--write-changes= applies unambiguous corrections
+and leaves ambiguous cases for manual review. After external edits, use
+=M-x revert-buffer= to refresh an open file. Scan a whole directory with
+=.\ed-typos.cmd .=.
+
+** Implementation
+Flymake keeps spelling diagnostics alongside optional Eglot diagnostics.
+This does not start =typos-lsp= or claim Eglot's single language-server
+connection per buffer; language servers remain opt-in.
+
+#+begin_src emacs-lisp
+  (when (executable-find "hunspell")
+    (setq ispell-program-name "hunspell"
+          ispell-dictionary "en_US")
+    (add-hook 'text-mode-hook #'flyspell-mode)
+    (add-hook 'prog-mode-hook #'flyspell-prog-mode))
+
+  (require 'flymake)
+  (require 'json)
+  (require 'subr-x)
+
+  (defvar-local ed-typos--process nil
+    "Active typos process for this buffer, if any.")
+
+  (defun ed-typos--byte-column-to-position (line-number byte-offset)
+    "Convert typos LINE-NUMBER and UTF-8 BYTE-OFFSET to a buffer position."
+    (save-excursion
+      (goto-char (point-min))
+      (forward-line (1- line-number))
+      (let ((remaining byte-offset)
+            (end (line-end-position)))
+        (while (and (> remaining 0) (< (point) end))
+          (setq remaining
+                (- remaining
+                   (string-bytes
+                    (encode-coding-string
+                     (buffer-substring-no-properties (point) (1+ (point)))
+                     'utf-8))))
+          (forward-char 1))
+        (point))))
+
+  (defun ed-typos--diagnostics (source output)
+    "Convert typos JSONL in OUTPUT to Flymake diagnostics for SOURCE."
+    (let (diagnostics)
+      (with-current-buffer output
+        (goto-char (point-min))
+        (while (not (eobp))
+          (let ((line (buffer-substring-no-properties
+                       (line-beginning-position) (line-end-position))))
+            (unless (string-empty-p line)
+              (condition-case nil
+                  (let* ((item (json-parse-string line :object-type 'alist
+                                                  :array-type 'list :null-object nil))
+                         (kind (alist-get 'type item)))
+                    (when (equal kind "typo")
+                      (let ((line-number (alist-get 'line_num item))
+                            (offset (alist-get 'byte_offset item))
+                            (word (alist-get 'typo item))
+                            (fixes (alist-get 'corrections item)))
+                        (when (and (integerp line-number) (> line-number 0)
+                                   (integerp offset) (>= offset 0)
+                                   (stringp word))
+                          (with-current-buffer source
+                            (let* ((start (ed-typos--byte-column-to-position
+                                           line-number offset))
+                                   (end (min (point-max) (+ start (length word))))
+                                   (suggestion (if fixes
+                                                   (format " (try: %s)"
+                                                           (mapconcat #'identity fixes ", "))
+                                                 "")))
+                              (push (flymake-make-diagnostic
+                                     source start end :warning
+                                     (concat "typos: " word suggestion))
+                                    diagnostics)))))))
+                (error nil))))
+          (forward-line 1)))
+      (nreverse diagnostics)))
+
+  (defun ed-typos-flymake (report-fn &rest _args)
+    "Asynchronously report buffer-local typos through Flymake."
+    (let ((old-process ed-typos--process))
+      (setq ed-typos--process nil)
+      (when (and (processp old-process) (process-live-p old-process))
+        (delete-process old-process)))
+    (let ((executable (executable-find "typos")))
+      (if (or (not executable) (not buffer-file-name)
+              (file-remote-p buffer-file-name)
+              (> (buffer-size) 500000))
+          (funcall report-fn nil)
+        (let* ((source (current-buffer))
+               (tick (buffer-chars-modified-tick))
+               (output (generate-new-buffer " *ed-typos-json*")))
+          (condition-case err
+              (let ((process
+                     (make-process
+                      :name "ed-typos" :buffer output
+                      :command (list executable "--format" "json" "-")
+                      :connection-type 'pipe :noquery t
+                      :coding 'utf-8-unix
+                      :sentinel
+                      (lambda (proc _event)
+                        (when (memq (process-status proc) '(exit signal))
+                          (unwind-protect
+                              (when (and (buffer-live-p source)
+                                         (eq proc (buffer-local-value
+                                                   'ed-typos--process source)))
+                                (with-current-buffer source
+                                  (setq ed-typos--process nil)
+                                  (when (= tick (buffer-chars-modified-tick))
+                                    (funcall report-fn
+                                             (if (and (eq (process-status proc) 'exit)
+                                                      (memq (process-exit-status proc) '(0 2)))
+                                                 (ed-typos--diagnostics source output)
+                                               nil)))))
+                            (when (buffer-live-p output)
+                              (kill-buffer output))))))))
+                (setq ed-typos--process process)
+                (process-send-string
+                 process (buffer-substring-no-properties (point-min) (point-max)))
+                (process-send-eof process))
+            (error
+             (when (buffer-live-p output) (kill-buffer output))
+             (message "ed: typos failed: %s" (error-message-string err))
+             (funcall report-fn nil)))))))
+
+  (defun ed-typos-enable ()
+    "Enable automatic source-code typo checking for this buffer."
+    (when (and buffer-file-name (executable-find "typos"))
+      (add-hook 'flymake-diagnostic-functions #'ed-typos-flymake nil t)
+      (flymake-mode 1)))
+
+  (add-hook 'prog-mode-hook #'ed-typos-enable)
+  (add-hook 'conf-mode-hook #'ed-typos-enable)
+  (add-hook 'js-json-mode-hook #'ed-typos-enable)
+#+end_src
+
 * Programming: language modes (LSP is strictly opt-in)
 This is a *file editor first*. Opening a file only ever turns on a major mode for
-syntax highlighting - it *never* starts a language server, a background process,
-or executes the file. LSP (Eglot, the built-in client) is available but is *never*
+syntax highlighting and background spelling diagnostics, but it never starts
+a language server or executes the file. LSP (Eglot, the built-in client) is available but is *never*
 started automatically: run =M-x ed-eglot-start= in a buffer when you explicitly
 want language-server features. Nothing below hooks Eglot onto a mode.
 

@@ -472,6 +472,130 @@ this, so the on-screen window ends up taller than this number (currently
 (global-set-key (kbd "C-x C-b") #'ibuffer)
 (global-set-key (kbd "C-x k")   #'kill-current-buffer)
 
+(when (executable-find "hunspell")
+  (setq ispell-program-name "hunspell"
+        ispell-dictionary "en_US")
+  (add-hook 'text-mode-hook #'flyspell-mode)
+  (add-hook 'prog-mode-hook #'flyspell-prog-mode))
+
+(require 'flymake)
+(require 'json)
+(require 'subr-x)
+
+(defvar-local ed-typos--process nil
+  "Active typos process for this buffer, if any.")
+
+(defun ed-typos--byte-column-to-position (line-number byte-offset)
+  "Convert typos LINE-NUMBER and UTF-8 BYTE-OFFSET to a buffer position."
+  (save-excursion
+    (goto-char (point-min))
+    (forward-line (1- line-number))
+    (let ((remaining byte-offset)
+          (end (line-end-position)))
+      (while (and (> remaining 0) (< (point) end))
+        (setq remaining
+              (- remaining
+                 (string-bytes
+                  (encode-coding-string
+                   (buffer-substring-no-properties (point) (1+ (point)))
+                   'utf-8))))
+        (forward-char 1))
+      (point))))
+
+(defun ed-typos--diagnostics (source output)
+  "Convert typos JSONL in OUTPUT to Flymake diagnostics for SOURCE."
+  (let (diagnostics)
+    (with-current-buffer output
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let ((line (buffer-substring-no-properties
+                     (line-beginning-position) (line-end-position))))
+          (unless (string-empty-p line)
+            (condition-case nil
+                (let* ((item (json-parse-string line :object-type 'alist
+                                                :array-type 'list :null-object nil))
+                       (kind (alist-get 'type item)))
+                  (when (equal kind "typo")
+                    (let ((line-number (alist-get 'line_num item))
+                          (offset (alist-get 'byte_offset item))
+                          (word (alist-get 'typo item))
+                          (fixes (alist-get 'corrections item)))
+                      (when (and (integerp line-number) (> line-number 0)
+                                 (integerp offset) (>= offset 0)
+                                 (stringp word))
+                        (with-current-buffer source
+                          (let* ((start (ed-typos--byte-column-to-position
+                                         line-number offset))
+                                 (end (min (point-max) (+ start (length word))))
+                                 (suggestion (if fixes
+                                                 (format " (try: %s)"
+                                                         (mapconcat #'identity fixes ", "))
+                                               "")))
+                            (push (flymake-make-diagnostic
+                                   source start end :warning
+                                   (concat "typos: " word suggestion))
+                                  diagnostics)))))))
+              (error nil))))
+        (forward-line 1)))
+    (nreverse diagnostics)))
+
+(defun ed-typos-flymake (report-fn &rest _args)
+  "Asynchronously report buffer-local typos through Flymake."
+  (let ((old-process ed-typos--process))
+    (setq ed-typos--process nil)
+    (when (and (processp old-process) (process-live-p old-process))
+      (delete-process old-process)))
+  (let ((executable (executable-find "typos")))
+    (if (or (not executable) (not buffer-file-name)
+            (file-remote-p buffer-file-name)
+            (> (buffer-size) 500000))
+        (funcall report-fn nil)
+      (let* ((source (current-buffer))
+             (tick (buffer-chars-modified-tick))
+             (output (generate-new-buffer " *ed-typos-json*")))
+        (condition-case err
+            (let ((process
+                   (make-process
+                    :name "ed-typos" :buffer output
+                    :command (list executable "--format" "json" "-")
+                    :connection-type 'pipe :noquery t
+                    :coding 'utf-8-unix
+                    :sentinel
+                    (lambda (proc _event)
+                      (when (memq (process-status proc) '(exit signal))
+                        (unwind-protect
+                            (when (and (buffer-live-p source)
+                                       (eq proc (buffer-local-value
+                                                 'ed-typos--process source)))
+                              (with-current-buffer source
+                                (setq ed-typos--process nil)
+                                (when (= tick (buffer-chars-modified-tick))
+                                  (funcall report-fn
+                                           (if (and (eq (process-status proc) 'exit)
+                                                    (memq (process-exit-status proc) '(0 2)))
+                                               (ed-typos--diagnostics source output)
+                                             nil)))))
+                          (when (buffer-live-p output)
+                            (kill-buffer output))))))))
+              (setq ed-typos--process process)
+              (process-send-string
+               process (buffer-substring-no-properties (point-min) (point-max)))
+              (process-send-eof process))
+          (error
+           (when (buffer-live-p output) (kill-buffer output))
+           (message "ed: typos failed: %s" (error-message-string err))
+           (funcall report-fn nil)))))))
+
+(defun ed-typos-enable ()
+  "Enable automatic source-code typo checking for this buffer."
+  (when (and buffer-file-name (executable-find "typos"))
+    (add-hook 'flymake-diagnostic-functions #'ed-typos-flymake nil t)
+    (flymake-mode 1)))
+
+(add-hook 'prog-mode-hook #'ed-typos-enable)
+(add-hook 'conf-mode-hook #'ed-typos-enable)
+(add-hook 'js-json-mode-hook #'ed-typos-enable)
+
 ;; Eglot is loaded lazily and NEVER auto-started. No mode hook calls it, so
   ;; merely opening a .cs/.rs/.scala/.ps1/etc. file will not launch any server.
   (with-eval-after-load 'eglot

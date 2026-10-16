@@ -1,4 +1,5 @@
 @echo off
+rem Emacs default version: install.ps1. Override with -Version 30.2.
 setlocal
 where pwsh >nul 2>nul
 if %ERRORLEVEL%==0 (

@@ -6,7 +6,7 @@ A00 Purpose
 
 ---
 
-This repository keeps the launcher, installer, portable runtime, and Emacs configuration in predictable locations. Clone it on Windows, add the launcher to PATH once, then run `ed` from any directory. If neither a repository runtime nor an Emacs executable on PATH is available, `ed` explains the portable install and asks before downloading anything.
+This repository keeps the launcher, installer, portable runtime, and Emacs configuration in predictable locations. Clone it on Windows, add the launcher to PATH once, then run `ed` from any directory. If neither a repository runtime nor an Emacs executable on PATH is available, `ed` explains the portable install and asks before downloading Emacs. The separate portable spelling tools are automatically provisioned on launch.
 
 The installer defaults to GNU Emacs 30.2. Another two-part release can be selected with `-Version`, for example `install.cmd -Version 30.1`.
 
@@ -19,11 +19,13 @@ B00 Repository layout
 | Path | Role |
 | --- | --- |
 | `ed.cmd` and `ed.ps1` | Launcher kept outside the Emacs init directory. |
-| `install.cmd` and `install.ps1` | Verified download, extraction, and optional PATH setup. |
+| `install.cmd` and `install.ps1` | Verified Emacs download, extraction, and optional PATH setup. |
+| `install-spelling.cmd` and `install-spelling.ps1` | Portable Hunspell, US dictionary, and typos installation. |
+| `ed-typos.cmd` and `ed-typos.ps1` | Run the pinned portable typos as a standalone command. |
 | `add-to-path.cmd` and `add-to-path.ps1` | Standalone, current-user-only PATH setup. |
 | `lib/` | Shared runtime discovery and raw-registry PATH safety functions. |
 | `emacs-init/` | `early-init.el`, `init.el`, and the literate configuration. |
-| `runtime/` | Portable Emacs installations. Ignored by Git. |
+| `runtime/` | Portable Emacs and spelling tool installations. Ignored by Git. |
 | `downloads/` | Downloaded ZIP and checksum files. Ignored by Git. |
 | `tools/` | PATH safety tests plus guarded Windows window, click, input, and screenshot utilities. |
 | `docs/` | Static website source configured for [ed.awwtools.com](https://ed.awwtools.com/). |
@@ -149,3 +151,47 @@ I00 Security boundaries
 SHA-256 verification detects corruption and a mismatched archive. It does not provide the same publisher-authentication guarantee as verifying GNU's detached GPG signatures with a trusted signing key. GPG signature verification remains a recommended future enhancement.
 
 The installer never performs a machine-wide installation and never writes the system PATH.
+
+---
+
+J00 Automatic spelling
+
+---
+
+`ed.cmd` automatically provisions pinned Hunspell, the LibreOffice `en_US`
+dictionaries, and `typos` if they are missing. Executables are cached
+under `runtime/`, archives under `downloads/`; repeat launches only check the
+expected local files, without network access, hashing, recursive scans or an
+installer lock. Upgrade the version and matching archive SHA-256 together at
+the top of `lib/Ed.Spelling.ps1`; archive names, URLs and runtime paths follow
+automatically, including for `ed-typos.cmd`. Change `EdDictionaryCommit` to
+update the dictionary; each revision gets its own folder. Dictionary files come
+from a fixed LibreOffice Git commit over HTTPS, with basic structural checks.
+The installer does not require Node.js, Cargo, Rust, administrator access,
+or any persistent PATH change. An unavailable download warns and lets Emacs
+launch without the missing spelling tool.
+
+To install independently or scan a directory from Windows CMD:
+
+```bat
+install-spelling.cmd
+ed-typos.cmd .
+```
+
+To install just one tool:
+
+```bat
+install-spelling.cmd -Tool Hunspell
+install-spelling.cmd -Tool Typos
+```
+
+The literate `emacs-init/init-config.org` config enables Flyspell for prose and
+for comments/strings in source files, plus automatic asynchronous `typos`
+diagnostics in programming/configuration buffers through Emacs Flymake.
+Because Eglot has a single language-server connection per buffer, this uses
+Flymake directly rather than auto-starting `typos-lsp`, preserving existing
+on-demand language server operation (`M-x ed-eglot-start`). In a source buffer,
+view warnings using `M-x flymake-show-buffer-diagnostics`. For project-specific
+false-positive suppression, add `_typos.toml` to that project's root.
+Correction shortcuts and CLI preview/apply examples are in the **Spelling**
+section of `emacs-init/init-config.org`.

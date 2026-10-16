@@ -1,4 +1,7 @@
 #Requires -Version 5.1
+# Configuration: change the $Version default below, or run install.cmd -Version 30.2.
+# GNU supplies the matching checksum; no hash needs editing here.
+# Spelling versions/checksums live at the top of lib\Ed.Spelling.ps1.
 <#
 .SYNOPSIS
 Installs a verified portable GNU Emacs build for Windows.
@@ -8,12 +11,8 @@ Downloads the complete Windows ZIP from an official GNU mirror, verifies it
 against the GNU SHA-256 file, extracts it under runtime, and optionally adds the
 repository root to the current user's PATH.
 
-The PATH update reads the registry value without expanding embedded variables,
-then writes it back using its original registry value type. This avoids replacing
-values such as %USERPROFILE% with expanded absolute paths.
-
 .PARAMETER Version
-GNU Emacs release to install. The default is 30.2.
+GNU Emacs release to install.
 
 .PARAMETER Mirror
 Preferred GNU mirror. Auto tries the GNU redirector, Berkeley, Waterloo, and the

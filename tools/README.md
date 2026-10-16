@@ -6,6 +6,13 @@
 .\tools\Test-PathSafety.ps1
 ```
 
+`Test-Spelling.ps1` checks first-launch provisioning, offline fast paths, upgrades,
+and failure handling using temporary fixtures; it never downloads or replaces tools.
+
+```powershell
+.\tools\Test-Spelling.ps1
+```
+
 `window-tool.ps1` targets one explicit process ID. Keyboard input first verifies that the same window is foreground; otherwise it refuses to type.
 
 ```powershell

@@ -1,4 +1,6 @@
 @echo off
+rem ed.ps1 installs missing spelling tools before launch; installed tools stay offline.
+rem Version/hash pins: lib\Ed.Spelling.ps1. Emacs version: install.ps1.
 setlocal
 where pwsh >nul 2>nul
 if %ERRORLEVEL%==0 (

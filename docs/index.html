@@ -1,15 +1,14 @@
-
 #<!--
 # ============================================================
 #
 #   ed / portable Emacs
 #   Bootstrap installer for Windows
 #
-#   Source:
-#   https://github.com/dzharii/ed-is-my-portable-emacs
+#   Source: https://github.com/dzharii/ed-is-my-portable-emacs
+#   Run:    iex (iwr -UseBasicParsing 'https://ed.awwtools.com/').Content
 #
-#   Usage:
-#   iex (iwr -UseBasicParsing 'https://ed.awwtools.com/').Content
+#   This installer always makes a NEW clone in the current folder.
+#   It never reuses, modifies, or updates existing checkouts.
 #
 # ============================================================
 
@@ -17,73 +16,60 @@ $ErrorActionPreference = 'Stop'
 
 Write-Host ''
 Write-Host '  ed / portable Emacs' -ForegroundColor Cyan
-Write-Host '  Installation bootstrap'
+Write-Host '  Installation bootstrap' -ForegroundColor Cyan
 Write-Host ''
 
-# 01 / Check prerequisites
+# 01 / Check Windows, Git, and the current directory.
 
-if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) {
-    throw 'Git for Windows is required: https://git-scm.com/downloads/win'
+if ($env:OS -ne 'Windows_NT') { throw 'Run this installer in PowerShell on Windows.' }
+if ((Get-Location).Provider.Name -ne 'FileSystem') { throw 'Run this installer from a filesystem directory.' }
+if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) { throw 'Git for Windows is required: https://git-scm.com/downloads/win' }
+
+$currentDirectory = [IO.Path]::GetFullPath((Get-Location).ProviderPath).TrimEnd([char]92, [char]47)
+$driveRoot = [IO.Path]::GetPathRoot($currentDirectory).TrimEnd([char]92, [char]47)
+if ($currentDirectory.Equals($driveRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'Choose a normal working directory instead of a drive root, then retry.' }
+
+foreach ($root in @($env:WINDIR, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
+    if ([string]::IsNullOrWhiteSpace($root)) { continue }
+    $protected = [IO.Path]::GetFullPath($root).TrimEnd([char]92, [char]47)
+    if ($currentDirectory.Equals($protected, [StringComparison]::OrdinalIgnoreCase) -or $currentDirectory.StartsWith($protected + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "The current directory is a protected Windows location: $currentDirectory. Change to a user-owned directory and retry." }
 }
 
-# 02 / Select installation directory
+# 02 / Choose the name of a NEW child folder in the current directory.
 
 $repository = 'https://github.com/dzharii/ed-is-my-portable-emacs.git'
-$defaultPath = Join-Path $HOME 'ed'
+$folderName = 'ed-is-my-portable-emacs'
+Write-Host "  Current directory: $currentDirectory"
 
-$destination = Read-Host "Install location [$defaultPath]"
-
-if ([string]::IsNullOrWhiteSpace($destination)) {
-    $destination = $defaultPath
+while ($true) {
+    if ($folderName -in @('.', '..') -or $folderName -match '[\\/:*?"<>|]' -or $folderName -match '[. ]$' -or $folderName -match '^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)') {
+        Write-Host "  Invalid Windows folder name: $folderName" -ForegroundColor Yellow
+    }
+    else {
+        $destination = Join-Path $currentDirectory $folderName
+        if (-not (Test-Path -LiteralPath $destination)) { break }
+        Write-Host "  $destination already exists. It will not be reused or modified." -ForegroundColor Yellow
+    }
+    $folderName = Read-Host 'Choose another folder name (blank to cancel)'
+    if ([string]::IsNullOrWhiteSpace($folderName)) { Write-Host 'Installation cancelled.'; return }
 }
 
-$destination = [IO.Path]::GetFullPath(
-    [Environment]::ExpandEnvironmentVariables($destination)
-)
+$confirmation = Read-Host "Clone ed into '$destination'? [Y/n]"
+if ($confirmation -notin @('', 'y', 'Y', 'yes', 'YES', 'Yes')) { Write-Host 'Installation cancelled.'; return }
 
-# 03 / Clone repository, or reuse an existing checkout
+# 03 / Clone the repository. Do not inspect or reuse existing checkouts.
 
-if (Test-Path -LiteralPath $destination) {
-    $gitDir = Join-Path $destination '.git'
+& git.exe clone -- $repository $destination
+if ($LASTEXITCODE -ne 0) { throw "Git clone failed: $destination" }
 
-    if (-not (Test-Path -LiteralPath $gitDir)) {
-        throw "Directory exists but is not a Git checkout: $destination"
-    }
-
-    $origin = & git -C $destination remote get-url origin
-
-    if ($LASTEXITCODE -ne 0 -or
-        $origin -notin @(
-            $repository,
-            'https://github.com/dzharii/ed-is-my-portable-emacs',
-            'git@github.com:dzharii/ed-is-my-portable-emacs.git'
-        )) {
-        throw "Existing checkout has an unexpected origin: $destination"
-    }
-
-    Write-Host 'Existing checkout found. Reusing it.'
-}
-else {
-    & git clone $repository $destination
-
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Git clone failed.'
-    }
-}
-
-# 04 / Offer to register the launcher in user PATH
+# 04 / Offer PATH registration and launch ed using its existing installer.
 
 & (Join-Path $destination 'add-to-path.cmd')
-
-if ($LASTEXITCODE -notin @(0, 2)) {
-    throw 'PATH setup failed.'
-}
-
-# 05 / Launch ed; its installer handles Emacs
+if ($LASTEXITCODE -notin @(0, 2)) { throw 'PATH setup failed.' }
 
 Write-Host 'Launching ed...' -ForegroundColor Cyan
-
 & (Join-Path $destination 'ed.cmd')
+if ($LASTEXITCODE -ne 0) { throw "ed exited with code $LASTEXITCODE." }
 
 #-->
 <#
@@ -91,8 +77,7 @@ Write-Host 'Launching ed...' -ForegroundColor Cyan
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport"
-        content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
 
   <title>ed / portable Emacs</title>
 
@@ -118,13 +103,10 @@ Write-Host 'Launching ed...' -ForegroundColor Cyan
 
           <h2>Install</h2>
 
-          <pre><code>iex (iwr -UseBasicParsing
-  'https://ed.awwtools.com/').Content</code></pre>
+          <pre><code>iex (iwr -UseBasicParsing 'https://ed.awwtools.com/').Content</code></pre>
 
           <p>
-            Requires Git for Windows. The installer
-            clones the repository, offers PATH setup,
-            and launches Emacs.
+            Requires Git for Windows. Run this command from your preferred working directory. The installer creates a new repository folder there, offers PATH setup, and launches Emacs.
           </p>
 
           <nav>

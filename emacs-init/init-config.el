@@ -596,13 +596,15 @@ this, so the on-screen window ends up taller than this number (currently
 (add-hook 'conf-mode-hook #'ed-typos-enable)
 (add-hook 'js-json-mode-hook #'ed-typos-enable)
 
-;; Eglot is loaded lazily and NEVER auto-started. No mode hook calls it, so
-  ;; merely opening a .cs/.rs/.scala/.ps1/etc. file will not launch any server.
+;; Only Cargo-backed Rust buffers request automatic Eglot startup.
   (with-eval-after-load 'eglot
     ;; If you DO start Eglot manually, never let it reformat your buffer on save.
     (add-hook 'eglot-managed-mode-hook
               (lambda ()
-                (remove-hook 'before-save-hook #'eglot-format-buffer t)))
+                (remove-hook 'before-save-hook #'eglot-format-buffer t)
+                ;; Eglot replaces the backend list when it takes over.
+                (when (eglot-managed-p)
+                  (ed-typos-enable))))
     ;; Concrete server programs, used only when you start Eglot yourself.
     (let ((cs (cond ((executable-find "csharp-ls")  '("csharp-ls"))
                     ((executable-find "OmniSharp")   '("OmniSharp" "-lsp"))
@@ -616,13 +618,34 @@ this, so the on-screen window ends up taller than this number (currently
 
   (defun ed-eglot-start ()
     "Manually start Eglot (LSP) in the current buffer.
-LSP is intentionally never started automatically in this config; invoke
-this only when you explicitly want language-server features here."
+Use this for languages other than automatic Cargo-backed Rust buffers."
     (interactive)
     (require 'eglot)
     (call-interactively #'eglot))
 
-(defun ed--rust-treesit-grammar-install (grammar-dir)
+(defcustom ed-rust-auto-eglot t
+    "Automatically start rust-analyzer for local Cargo-backed Rust files.
+The server may run Cargo checks and build scripts in the project."
+    :type 'boolean
+    :group 'ed)
+
+  (with-eval-after-load 'project
+    (add-to-list 'project-vc-extra-root-markers "Cargo.toml"))
+
+  (defun ed-rust-setup ()
+    "Use Cargo-aware diagnostics instead of checking a crate module alone."
+    (when (and buffer-file-name
+               (not (file-remote-p buffer-file-name))
+               (locate-dominating-file buffer-file-name "Cargo.toml"))
+      (remove-hook 'flymake-diagnostic-functions #'rust-ts-flymake t)
+      (when ed-rust-auto-eglot
+        (if (executable-find "rust-analyzer")
+            (progn
+              (require 'eglot)
+              (eglot-ensure))
+          (message "ed: install Rust diagnostics with rustup component add rust-analyzer")))))
+
+  (defun ed--rust-treesit-grammar-install (grammar-dir)
     "Fetch the precompiled Rust tree-sitter grammar into GRAMMAR-DIR.
 Verifies the download against `ed-rust-treesit-grammar-sha256' before
 installing it, and always cleans up its own temporary files."
@@ -667,7 +690,8 @@ installing it, and always cleans up its own temporary files."
       (unless (treesit-language-available-p 'rust)
         (error "ed: Rust tree-sitter grammar is unavailable")))
 
-    :mode ("\\.rs\\'" . rust-ts-mode))
+    :mode ("\\.rs\\'" . rust-ts-mode)
+    :hook (rust-ts-mode . ed-rust-setup))
 
 (use-package scala-mode
   :interpreter ("scala" . scala-mode))

@@ -13,6 +13,14 @@ and failure handling using temporary fixtures; it never downloads or replaces to
 .\tools\Test-Spelling.ps1
 ```
 
+`Test-RustDiagnostics.el` checks Cargo detection, automatic Eglot selection,
+standalone files, opt-out behavior, and coexistence with spelling diagnostics.
+It does not download packages or start language servers.
+
+```powershell
+.\runtime\emacs-30.2\bin\emacs.exe -Q --batch -l .\tools\Test-RustDiagnostics.el
+```
+
 `window-tool.ps1` targets one explicit process ID. Keyboard input first verifies that the same window is foreground; otherwise it refuses to type.
 
 ```powershell

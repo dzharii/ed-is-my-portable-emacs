@@ -10,7 +10,7 @@ random "candlelight" mode-line flicker are all gone. In their place:
 
 - a *light, legible* theme (built-in =modus-operandi=, GitHub-like in spirit),
 - *modern completion* (Vertico + Corfu family) without abandoning default keys,
-- *Eglot* (built-in LSP) available but *strictly opt-in* - never auto-started,
+- *Eglot* (built-in LSP) automatic for Cargo Rust projects, opt-in elsewhere,
 - first-class editing support for the file types used day to day: *KQL, C#,
   Rust, Scala, PowerShell, JSON, YAML, Markdown, Emacs Lisp*, plus *Magit* for git,
 - the good VS Code-style =C-`= terminal toggle, kept.
@@ -697,9 +697,9 @@ and leaves ambiguous cases for manual review. After external edits, use
 =.\ed-typos.cmd .=.
 
 ** Implementation
-Flymake keeps spelling diagnostics alongside optional Eglot diagnostics.
+Flymake keeps spelling diagnostics alongside Eglot diagnostics.
 This does not start =typos-lsp= or claim Eglot's single language-server
-connection per buffer; language servers remain opt-in.
+connection per buffer.
 
 #+begin_src emacs-lisp
   (when (executable-find "hunspell")
@@ -827,21 +827,23 @@ connection per buffer; language servers remain opt-in.
   (add-hook 'js-json-mode-hook #'ed-typos-enable)
 #+end_src
 
-* Programming: language modes (LSP is strictly opt-in)
-This is a *file editor first*. Opening a file only ever turns on a major mode for
-syntax highlighting and background spelling diagnostics, but it never starts
-a language server or executes the file. LSP (Eglot, the built-in client) is available but is *never*
-started automatically: run =M-x ed-eglot-start= in a buffer when you explicitly
-want language-server features. Nothing below hooks Eglot onto a mode.
+* Programming: language modes (automatic LSP for Cargo Rust projects)
+This is a *file editor first*. Language servers are opt-in except for Rust files
+inside a Cargo project: those use Eglot and rust-analyzer automatically for
+project-aware diagnostics. rust-analyzer may run Cargo checks and build scripts;
+only open trusted Rust projects with automatic LSP enabled.
+For other languages, run =M-x ed-eglot-start= when you want language-server features.
 
 #+begin_src emacs-lisp
-  ;; Eglot is loaded lazily and NEVER auto-started. No mode hook calls it, so
-  ;; merely opening a .cs/.rs/.scala/.ps1/etc. file will not launch any server.
+  ;; Only Cargo-backed Rust buffers request automatic Eglot startup.
   (with-eval-after-load 'eglot
     ;; If you DO start Eglot manually, never let it reformat your buffer on save.
     (add-hook 'eglot-managed-mode-hook
               (lambda ()
-                (remove-hook 'before-save-hook #'eglot-format-buffer t)))
+                (remove-hook 'before-save-hook #'eglot-format-buffer t)
+                ;; Eglot replaces the backend list when it takes over.
+                (when (eglot-managed-p)
+                  (ed-typos-enable))))
     ;; Concrete server programs, used only when you start Eglot yourself.
     (let ((cs (cond ((executable-find "csharp-ls")  '("csharp-ls"))
                     ((executable-find "OmniSharp")   '("OmniSharp" "-lsp"))
@@ -855,8 +857,7 @@ want language-server features. Nothing below hooks Eglot onto a mode.
 
   (defun ed-eglot-start ()
     "Manually start Eglot (LSP) in the current buffer.
-LSP is intentionally never started automatically in this config; invoke
-this only when you explicitly want language-server features here."
+Use this for languages other than automatic Cargo-backed Rust buffers."
     (interactive)
     (require 'eglot)
     (call-interactively #'eglot))
@@ -869,9 +870,44 @@ needed. No language server is started on open (use =M-x ed-eglot-start= if wante
 ** Rust - built-in rust-ts-mode
 Configure =rust-ts-mode= for Rust files. Its tree-sitter grammar is a
 precompiled binary fetched once into the local cache when missing, so no C
-compiler or Git checkout is ever required. Eglot remains opt-in.
+compiler or Git checkout is ever required.
+
+In a Cargo project, disable the built-in standalone =clippy-driver -= backend:
+it checks a buffer without Cargo dependencies or the crate's module tree and
+therefore reports false unresolved imports and missing =main= errors.
+Eglot starts =rust-analyzer= instead, which discovers =Cargo.toml=, Cargo
+configuration, and =rust-toolchain.toml= automatically. Cargo roots are recognized
+even outside Git repositories. Standalone Rust files keep the built-in checker.
+
+Install the server for the project's toolchain with =rustup component add
+rust-analyzer=. No server is downloaded by the editor. Set =ed-rust-auto-eglot=
+to =nil= to disable automatic startup; Cargo buffers still avoid the invalid
+standalone checker. On Windows, launch =ed= from a Visual Studio developer shell
+if the project needs MSVC build scripts.
 
 #+begin_src emacs-lisp
+  (defcustom ed-rust-auto-eglot t
+    "Automatically start rust-analyzer for local Cargo-backed Rust files.
+The server may run Cargo checks and build scripts in the project."
+    :type 'boolean
+    :group 'ed)
+
+  (with-eval-after-load 'project
+    (add-to-list 'project-vc-extra-root-markers "Cargo.toml"))
+
+  (defun ed-rust-setup ()
+    "Use Cargo-aware diagnostics instead of checking a crate module alone."
+    (when (and buffer-file-name
+               (not (file-remote-p buffer-file-name))
+               (locate-dominating-file buffer-file-name "Cargo.toml"))
+      (remove-hook 'flymake-diagnostic-functions #'rust-ts-flymake t)
+      (when ed-rust-auto-eglot
+        (if (executable-find "rust-analyzer")
+            (progn
+              (require 'eglot)
+              (eglot-ensure))
+          (message "ed: install Rust diagnostics with rustup component add rust-analyzer")))))
+
   (defun ed--rust-treesit-grammar-install (grammar-dir)
     "Fetch the precompiled Rust tree-sitter grammar into GRAMMAR-DIR.
 Verifies the download against `ed-rust-treesit-grammar-sha256' before
@@ -917,7 +953,8 @@ installing it, and always cleans up its own temporary files."
       (unless (treesit-language-available-p 'rust)
         (error "ed: Rust tree-sitter grammar is unavailable")))
 
-    :mode ("\\.rs\\'" . rust-ts-mode))
+    :mode ("\\.rs\\'" . rust-ts-mode)
+    :hook (rust-ts-mode . ed-rust-setup))
 #+end_src
 
 ** Scala - scala-mode (syntax only; no server on open)

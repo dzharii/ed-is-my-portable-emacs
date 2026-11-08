@@ -120,6 +120,13 @@ F00 Configuration workflow
 
 Normal startup loads `emacs-init/init-config.el` directly. The source is `emacs-init/init-config.org`. After editing the Org file, run `M-x ed-reload-config`; this tangles and reloads the generated Lisp file.
 
+Rust files inside Cargo projects automatically use Eglot with `rust-analyzer`
+for project-aware diagnostics, including dependencies and sibling modules.
+Install it for the project's toolchain with `rustup component add rust-analyzer`.
+Set `ed-rust-auto-eglot` to `nil` to keep startup manual. Other languages remain
+opt-in. On Windows, launch `ed` from a Visual Studio developer shell when Cargo
+build scripts require MSVC.
+
 Package, native compilation, backup, auto-save, Custom, and history data are written under `%LOCALAPPDATA%\emacs-ed` rather than into the Git repository. Any missing required ELPA package is installed during startup with bounded retry for transient network failures.
 
 ---

@@ -966,6 +966,17 @@ For heavy Scala, Metals gives a richer UX; start it deliberately with
     :interpreter ("scala" . scala-mode))
 #+end_src
 
+** TypeScript / JavaScript - built-in js-mode for .ts and .tsx
+
+Emacs 29+ has built-in tree-sitter modes for TS/TSX, but they require downloading extra grammars. 
+The classic =js-mode= works out of the box with zero setup.
+
+#+begin_src emacs-lisp
+  ;; Map .ts and .tsx files to the built-in js-mode
+  (add-to-list 'auto-mode-alist '("\\.ts\\'" . js-mode))
+  (add-to-list 'auto-mode-alist '("\\.tsx\\'" . js-mode))
+#+end_src
+
 ** PowerShell - syntax mode only (never runs a shell on open)
 IMPORTANT: map the extensions to =powershell-mode= (the *major mode*). The bare
 =:mode ("\\.ps1\\'")= form would map to the function =powershell=, which is

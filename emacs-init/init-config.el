@@ -696,6 +696,10 @@ installing it, and always cleans up its own temporary files."
 (use-package scala-mode
   :interpreter ("scala" . scala-mode))
 
+;; Map .ts and .tsx files to the built-in js-mode
+(add-to-list 'auto-mode-alist '("\\.ts\\'" . js-mode))
+(add-to-list 'auto-mode-alist '("\\.tsx\\'" . js-mode))
+
 (use-package powershell
   :commands (powershell-mode)
   :mode (("\\.ps1\\'"  . powershell-mode)
